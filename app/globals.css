@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root{ --radius: 14px; }
+
+.glass {
+  background: linear-gradient(180deg, rgba(255,255,255,.7), rgba(255,255,255,.55));
+  border: 1px solid rgba(0,0,0,.06);
+  box-shadow: 0 10px 40px rgba(2,6,23,.08);
+}
+.dark .glass{
+  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.04));
+  border: 1px solid rgba(255,255,255,.08);
+  box-shadow: 0 10px 40px rgba(0,0,0,.25);
+}
+
+.hero-grad{
+  background: radial-gradient(1200px 600px at 80% -20%, rgba(59,130,246,.25), transparent 60%),
+              radial-gradient(1000px 500px at -20% 0%, rgba(14,165,233,.25), transparent 60%),
+              linear-gradient(180deg, rgba(255,255,255,1), rgba(248,250,252,1));
+}
+.dark .hero-grad{
+  background: radial-gradient(1200px 600px at 80% -20%, rgba(59,130,246,.15), transparent 60%),
+              radial-gradient(1000px 500px at -20% 0%, rgba(34,197,94,.12), transparent 60%),
+              linear-gradient(180deg, #0b1020, #0e1428);
+}
+
+html, body{ height: 100%; }
+
+.prose p { margin: 0.5rem 0; }
+
+.hover\:shadow-card:hover{ box-shadow: 0 8px 30px rgba(2,6,23,0.08); }
