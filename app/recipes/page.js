@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -45,16 +45,31 @@ export default function Recipes() {
         } catch {}
     }, [setValue]);
 
-    // auto-scroll to bottom when response updates
+    // auto-scroll to bottom when response updates (throttled for performance)
     useEffect(() => {
-        try {
-            if (respRef.current) {
-                respRef.current.scrollTop = respRef.current.scrollHeight;
-            }
-        } catch {}
-    }, [resp]);
+        if (!isStreaming) {
+            // Immediate scroll when streaming stops
+            try {
+                if (respRef.current) {
+                    respRef.current.scrollTop = respRef.current.scrollHeight;
+                }
+            } catch {}
+            return;
+        }
+        
+        // Throttled scroll during streaming
+        const timeoutId = setTimeout(() => {
+            try {
+                if (respRef.current) {
+                    respRef.current.scrollTop = respRef.current.scrollHeight;
+                }
+            } catch {}
+        }, 100); // Scroll every 100ms during streaming
+        
+        return () => clearTimeout(timeoutId);
+    }, [resp, isStreaming]);
 
-    const onSubmit = async (values) => {
+    const onSubmit = useCallback(async (values) => {
         setLoading(true);
         setResp('');
         const controller = new AbortController();
@@ -75,8 +90,11 @@ export default function Recipes() {
                 return;
             }
             const reader = res.body.getReader();
-            const dec = new TextDecoder();
+            const dec = new TextDecoder('utf-8', { stream: true });
             let acc = '';
+            let updateCount = 0;
+            let lastUpdateTime = 0;
+            
             while (true) {
                 let read;
                 try {
@@ -86,9 +104,25 @@ export default function Recipes() {
                 }
                 const { value, done } = read || {};
                 if (done) break;
-                acc += dec.decode(value);
-                setResp(acc);
+                
+                acc += dec.decode(value, { stream: true });
+                updateCount++;
+                const now = Date.now();
+                
+                // Batch UI updates: update every 3 chunks OR every 16ms (60fps) OR if significant content added
+                const shouldUpdate = updateCount % 3 === 0 || 
+                                   now - lastUpdateTime > 16 || 
+                                   value.length > 100;
+                
+                if (shouldUpdate) {
+                    setResp(acc);
+                    lastUpdateTime = now;
+                }
             }
+            
+            // Final update to ensure all content is shown
+            setResp(acc);
+            
         } catch (e) {
             if (e?.name !== 'AbortError') setResp('Gagal membuat resep');
         } finally {
@@ -96,17 +130,18 @@ export default function Recipes() {
             setIsStreaming(false);
             abortRef.current = null;
         }
-    };
+    }, [selectedModel]);
 
-    const stop = () => {
+    const stop = useCallback(() => {
         try {
             abortRef.current?.abort();
         } catch {}
-    };
-    const onReset = () => {
+    }, []);
+    
+    const onReset = useCallback(() => {
         setResp('');
         reset({ ingredients: '', query: '' });
-    };
+    }, [reset]);
 
     const addPantry = () => {
         const name = newItem.trim();
@@ -136,7 +171,7 @@ export default function Recipes() {
     // removed planner integration
 
     return (
-        <div className="flex flex-col min-h-0 space-y-4 p-4 overflow-hidden">
+        <div className="flex flex-col min-h-0 space-y-4 p-4 overflow-hidden max-h-[80vh] md:h-[80vh]">
             <div className="flex-none">
                 <h1 className="text-2xl font-bold text-center sm:text-left">
                     Resep Dinamis dengan Granite AI
@@ -148,7 +183,7 @@ export default function Recipes() {
             
             <form
                 onSubmit={handleSubmit(onSubmit)}
-                className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-4 gap-4"
+                className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-4 gap-4 max-h-[80vh]"
             >
                 <Card className="lg:col-span-1 col-span-1 flex flex-col">
                     <div className="flex-1 space-y-4">
@@ -216,7 +251,7 @@ export default function Recipes() {
                         </div>
                     </div>
                     
-                    <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                    <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
                         <div className="flex flex-wrap gap-2">
                             <Button
                                 type="submit"
@@ -251,14 +286,128 @@ export default function Recipes() {
                     <div className="flex-none">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="font-semibold text-lg">Hasil</h2>
-                            {(isStreaming || loading) && (
-                                <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                                    <div className="animate-spin w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full"></div>
-                                    <span className="hidden sm:inline">
-                                        {isStreaming ? 'Generating resep...' : 'Loading...'}
-                                    </span>
-                                </div>
-                            )}
+                            <div className="flex items-center gap-2">
+                                {/* Tombol Simpan Semua di kanan atas */}
+                                {!isStreaming && !loading && segments.length > 1 && (
+                                    <Button
+                                        type="button"
+                                        variant="primary"
+                                        size="sm"
+                                        className="whitespace-nowrap"
+                                        onClick={() => {
+                                            try {
+                                                const saved = JSON.parse(
+                                                    localStorage.getItem(
+                                                        'savedRecipes'
+                                                    ) || '[]'
+                                                );
+                                                const now = Date.now();
+                                                let totalChecklistItems = 0;
+                                                
+                                                // Filter out meaningless segments before saving
+                                                const validEntries = segments
+                                                    .filter((seg, i) => {
+                                                        // Skip meaningless responses
+                                                        if (isResponseMeaningless(seg.text)) {
+                                                            console.log(`Skipping segment ${i}: meaningless response`);
+                                                            return false;
+                                                        }
+                                                        
+                                                        // Skip segments with too many separators
+                                                        const separatorChars = (seg.text.match(/[-=_\s]/g) || []).length;
+                                                        const separatorRatio = separatorChars / seg.text.length;
+                                                        if (separatorRatio > 0.6) {
+                                                            console.log(`Skipping segment ${i}: too many separators`);
+                                                            return false;
+                                                        }
+                                                        
+                                                        // Skip segments with invalid titles
+                                                        if (!seg.title || seg.title.trim().length < 3 || 
+                                                            /^[-=_*#+\s]+$/.test(seg.title)) {
+                                                            console.log(`Skipping segment ${i}: invalid title`);
+                                                            return false;
+                                                        }
+                                                        
+                                                        return true;
+                                                    })
+                                                    .map((seg, i) => {
+                                                        const checklist = buildChecklistFromText(seg.text);
+                                                        totalChecklistItems += checklist.totalItems;
+                                                        
+                                                        const uniqueId = `recipe_${now}_${Math.random().toString(36).substr(2, 9)}_${i}`;
+                                                        
+                                                        return {
+                                                            id: uniqueId,
+                                                            title: seg.title.trim(),
+                                                            content: seg.text,
+                                                            rawHtml: seg.html,
+                                                            pantry: [...pantry], // Copy array
+                                                            checklist,
+                                                            meta: {
+                                                                query:
+                                                                    document.getElementById(
+                                                                        'query_inp'
+                                                                    )?.value?.trim() || '',
+                                                                model: selectedModel || 'default',
+                                                                segmentIndex: i,
+                                                                totalSegments: segments.length,
+                                                                batchSave: true
+                                                            },
+                                                            createdAt:
+                                                                new Date().toISOString(),
+                                                            updatedAt:
+                                                                new Date().toISOString(),
+                                                        };
+                                                    }
+                                                );
+                                                
+                                                // Only proceed if we have valid entries
+                                                if (validEntries.length === 0) {
+                                                    toast({
+                                                        title: 'Tidak Ada Resep Valid',
+                                                        description: 'Tidak ada resep yang dapat disimpan. Resep berisi separator atau tidak valid.'
+                                                    });
+                                                    return;
+                                                }
+                                                
+                                                localStorage.setItem(
+                                                    'savedRecipes',
+                                                    JSON.stringify(
+                                                        [...validEntries, ...saved].slice(
+                                                            0,
+                                                            50
+                                                        )
+                                                    )
+                                                );
+                                                window.dispatchEvent(
+                                                    new Event('savedRecipesUpdated')
+                                                );
+                                                toast({
+                                                    title: 'Resep Valid Disimpan',
+                                                    description: `${validEntries.length} resep valid dengan total ${totalChecklistItems} item checklist berhasil disimpan. Buka tab Todolist untuk checklist.`
+                                                });
+                                            } catch (error) {
+                                                console.error('Error saving all recipes:', error);
+                                                toast({
+                                                    title: 'Error',
+                                                    description: 'Gagal menyimpan beberapa resep. Silakan coba lagi.'
+                                                });
+                                            }
+                                        }}
+                                    >
+                                        Simpan Semua ({segments.length})
+                                    </Button>
+                                )}
+                                {/* Loading indicator */}
+                                {(isStreaming || loading) && (
+                                    <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                                        <div className="animate-spin w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full"></div>
+                                        <span className="hidden sm:inline">
+                                            {isStreaming ? 'Generating resep...' : 'Loading...'}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                     
@@ -287,6 +436,27 @@ export default function Recipes() {
                                                     className="flex-shrink-0"
                                                     onClick={() => {
                                                     try {
+                                                        // Enhanced validation - don't save meaningless responses
+                                                        if (isResponseMeaningless(seg.text)) {
+                                                            console.log('Skipping save: meaningless response detected');
+                                                            return;
+                                                        }
+                                                        
+                                                        // Additional check for separator-heavy content
+                                                        const separatorChars = (seg.text.match(/[-=_\s]/g) || []).length;
+                                                        const separatorRatio = separatorChars / seg.text.length;
+                                                        if (separatorRatio > 0.6) {
+                                                            console.log('Skipping save: too many separator characters');
+                                                            return;
+                                                        }
+                                                        
+                                                        // Check if title is meaningful
+                                                        if (!seg.title || seg.title.trim().length < 3 || 
+                                                            /^[-=_*#+\s]+$/.test(seg.title)) {
+                                                            console.log('Skipping save: invalid title');
+                                                            return;
+                                                        }
+                                                        
                                                         const saved =
                                                             JSON.parse(
                                                                 localStorage.getItem(
@@ -398,7 +568,7 @@ export default function Recipes() {
                         )}
                     </div>
                     
-                    <div className="flex-shrink-0 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                    <div className="flex-shrink-0 mb-9 pt-4 border-t border-slate-200 dark:border-slate-700">
                         <div className="flex flex-wrap gap-2">
                             {(isStreaming || loading) && resp ? (
                                 <div className="text-sm text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-md">
@@ -406,165 +576,88 @@ export default function Recipes() {
                                 </div>
                             ) : (
                                 <>
-                                    {/* Only show save buttons if we have valid segments or meaningful content */}
-                                    {!isStreaming && !loading && segments.length > 1 ? (
+                                    {/* Only show single save button if we have exactly one segment OR meaningful content without segments */}
+                                    {(!isStreaming && !loading && 
+                                    (
+                                        (segments.length === 1) || 
+                                        (segments.length === 0 && resp?.trim() && !isResponseMeaningless(resp))
+                                    )) && (
                                         <Button
                                             type="button"
                                             variant="primary"
                                             size="sm"
                                             className="flex-1 sm:flex-none"
-                                onClick={() => {
-                                    try {
-                                        const saved = JSON.parse(
-                                            localStorage.getItem(
-                                                'savedRecipes'
-                                            ) || '[]'
-                                        );
-                                        const now = Date.now();
-                                        let totalChecklistItems = 0;
-                                        
-                                        const entries = segments.map(
-                                            (seg, i) => {
-                                                const checklist = buildChecklistFromText(seg.text);
-                                                totalChecklistItems += checklist.totalItems;
-                                                
-                                                const uniqueId = `recipe_${now}_${Math.random().toString(36).substr(2, 9)}_${i}`;
-                                                
-                                                return {
-                                                    id: uniqueId,
-                                                    title: seg.title.trim(),
-                                                    content: seg.text,
-                                                    rawHtml: seg.html,
-                                                    pantry: [...pantry], // Copy array
-                                                    checklist,
-                                                    meta: {
-                                                        query:
-                                                            document.getElementById(
-                                                                'query_inp'
-                                                            )?.value?.trim() || '',
-                                                        model: selectedModel || 'default',
-                                                        segmentIndex: i,
-                                                        totalSegments: segments.length,
-                                                        batchSave: true
-                                                    },
-                                                    createdAt:
-                                                        new Date().toISOString(),
-                                                    updatedAt:
-                                                        new Date().toISOString(),
-                                                };
-                                            }
-                                        );
-                                        localStorage.setItem(
-                                            'savedRecipes',
-                                            JSON.stringify(
-                                                [...entries, ...saved].slice(
-                                                    0,
-                                                    50
-                                                )
-                                            )
-                                        );
-                                        window.dispatchEvent(
-                                            new Event('savedRecipesUpdated')
-                                        );
-                                        toast({
-                                            title: 'Semua Resep Disimpan',
-                                            description: `${segments.length} resep dengan total ${totalChecklistItems} item checklist berhasil disimpan. Buka tab Todolist untuk checklist.`
-                                        });
-                                    } catch (error) {
-                                        console.error('Error saving all recipes:', error);
-                                        toast({
-                                            title: 'Error',
-                                            description: 'Gagal menyimpan beberapa resep. Silakan coba lagi.'
-                                        });
-                                    }
-                                }}
-                            >
-                                Simpan Semua ({segments.length})
-                            </Button>
-                        ) : (
-                            // Only show single save button if we have exactly one segment OR meaningful content without segments
-                            (!isStreaming && !loading && 
-                            (
-                                (segments.length === 1) || 
-                                (segments.length === 0 && resp?.trim() && !isResponseMeaningless(resp))
-                            )) ? (
-                                <Button
-                                    type="button"
-                                    variant="primary"
-                                    size="sm"
-                                    className="flex-1 sm:flex-none"
-                                    onClick={() => {
-                                        try {
-                                            if (!resp?.trim()) return;
-                                            
-                                            // Don't save if response is meaningless
-                                            if (isResponseMeaningless(resp)) return;
-                                            
-                                            const saved = JSON.parse(
-                                                localStorage.getItem(
-                                                    'savedRecipes'
-                                                ) || '[]'
-                                            );
-                                            const title =
-                                                extractTitleFromText(resp);
-                                            const checklist =
-                                                buildChecklistFromText(resp);
-                                                
-                                            const uniqueId = `recipe_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_single`;
-                                            
-                                            const entry = {
-                                                id: uniqueId,
-                                                title: title.trim(),
-                                                content: resp,
-                                                rawHtml: formatListHtml(resp),
-                                                pantry: [...pantry], // Copy array
-                                                checklist,
-                                                meta: {
-                                                    query:
-                                                        document.getElementById(
-                                                            'query_inp'
-                                                        )?.value?.trim() || '',
-                                                    model: selectedModel || 'default',
-                                                    segmentIndex: 0,
-                                                    totalSegments: 1,
-                                                    singleSave: true
-                                                },
-                                                createdAt:
-                                                    new Date().toISOString(),
-                                                updatedAt:
-                                                    new Date().toISOString(),
-                                            };
-                                            localStorage.setItem(
-                                                'savedRecipes',
-                                                JSON.stringify(
-                                                    [entry, ...saved].slice(
-                                                        0,
-                                                        50
-                                                    )
-                                                )
-                                            );
-                                            window.dispatchEvent(
-                                                new Event('savedRecipesUpdated')
-                                            );
-                                            toast({
-                                                title: 'Resep Disimpan',
-                                                description: `"${title}" berhasil disimpan dengan ${checklist.totalItems} item checklist. Buka tab Todolist untuk checklist.`
-                                            });
-                                        } catch (error) {
-                                            console.error('Error saving single recipe:', error);
-                                            toast({
-                                                title: 'Error',
-                                                description: 'Gagal menyimpan resep. Silakan coba lagi.'
-                                            });
-                                        }
-                                    }}
-                                >
-                                    Simpan Resep
-                                </Button>
-                            ) : null
-                        )}
-                        </>
-                        )}
+                                            onClick={() => {
+                                                try {
+                                                    if (!resp?.trim()) return;
+                                                    
+                                                    // Don't save if response is meaningless
+                                                    if (isResponseMeaningless(resp)) return;
+                                                    
+                                                    const saved = JSON.parse(
+                                                        localStorage.getItem(
+                                                            'savedRecipes'
+                                                        ) || '[]'
+                                                    );
+                                                    const title =
+                                                        extractTitleFromText(resp);
+                                                    const checklist =
+                                                        buildChecklistFromText(resp);
+                                                        
+                                                    const uniqueId = `recipe_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_single`;
+                                                    
+                                                    const entry = {
+                                                        id: uniqueId,
+                                                        title: title.trim(),
+                                                        content: resp,
+                                                        rawHtml: formatListHtml(resp),
+                                                        pantry: [...pantry], // Copy array
+                                                        checklist,
+                                                        meta: {
+                                                            query:
+                                                                document.getElementById(
+                                                                    'query_inp'
+                                                                )?.value?.trim() || '',
+                                                            model: selectedModel || 'default',
+                                                            segmentIndex: 0,
+                                                            totalSegments: 1,
+                                                            singleSave: true
+                                                        },
+                                                        createdAt:
+                                                            new Date().toISOString(),
+                                                        updatedAt:
+                                                            new Date().toISOString(),
+                                                    };
+                                                    localStorage.setItem(
+                                                        'savedRecipes',
+                                                        JSON.stringify(
+                                                            [entry, ...saved].slice(
+                                                                0,
+                                                                50
+                                                            )
+                                                        )
+                                                    );
+                                                    window.dispatchEvent(
+                                                        new Event('savedRecipesUpdated')
+                                                    );
+                                                    toast({
+                                                        title: 'Resep Disimpan',
+                                                        description: `"${title}" berhasil disimpan dengan ${checklist.totalItems} item checklist. Buka tab Todolist untuk checklist.`
+                                                    });
+                                                } catch (error) {
+                                                    console.error('Error saving single recipe:', error);
+                                                    toast({
+                                                        title: 'Error',
+                                                        description: 'Gagal menyimpan resep. Silakan coba lagi.'
+                                                    });
+                                                }
+                                            }}
+                                        >
+                                            Simpan Resep
+                                        </Button>
+                                    )}
+                                </>
+                            )}
                         </div>
                     </div>
                 </Card>
@@ -583,7 +676,7 @@ function isResponseMeaningless(text = '') {
     
     const raw = text.trim();
     
-    // Check for common meaningless patterns
+    // Check for common meaningless patterns - ENHANCED for dashes
     const meaninglessPatterns = [
         /^-+$/,  // Just dashes
         /^=+$/,  // Just equals
@@ -592,8 +685,14 @@ function isResponseMeaningless(text = '') {
         /^\*+$/, // Just asterisks
         /^#+$/,  // Just hashes
         /^[\s\-=_.*#]+$/,  // Only whitespace and separator characters
-        /^---+/,  // Starts with three or more dashes
-        /^===+/,  // Starts with three or more equals
+        /^-{3,}/,  // Starts with three or more dashes
+        /^={3,}/,  // Starts with three or more equals
+        /^-{2,}\s*-{2,}/,  // Multiple dash groups
+        /^-+\s*-+\s*-+/,  // Three or more dash groups
+        /^\s*-{5,}\s*$/,  // Five or more dashes (with optional whitespace)
+        /^[\-\s]{10,}$/,  // Long sequences of dashes and spaces
+        /^-+\n-+/,  // Multiple lines of dashes
+        /^\s*-{3,}.*-{3,}\s*$/,  // Dashes at start and end
     ];
     
     const isMeaningless = meaninglessPatterns.some(pattern => pattern.test(raw));
@@ -602,10 +701,16 @@ function isResponseMeaningless(text = '') {
     // Check if content is too short
     if (raw.length < 10) return true;
     
+    // Check if it's mostly separators (more than 70% dashes, equals, underscores)
+    const separatorChars = (raw.match(/[-=_\s]/g) || []).length;
+    const separatorRatio = separatorChars / raw.length;
+    if (separatorRatio > 0.7) return true;
+    
     // Check if it looks like an error message
     const errorPatterns = [
         /^(error|gagal|failed|tidak|cannot|unable)/i,
         /^(maaf|sorry|apologize)/i,
+        /^(loading|waiting|please wait)/i,
     ];
     
     const isError = errorPatterns.some(pattern => pattern.test(raw));
@@ -717,41 +822,157 @@ function extractTitleFromText(text = '') {
             .map((s) => s.trim())
             .filter(Boolean);
             
-        // Look for a line that looks like a title/header
+        // Look for a line that looks like a recipe title/name
         for (const line of lines) {
-            // Skip list items and section headers
-            if (/^(\d+\.|[-*•]\s|Bahan|Langkah|Estimasi|Tips)/i.test(line)) {
+            // Skip obvious non-title patterns - ENHANCED
+            if (/^(\d+\.|[-*•]\s|Bahan|Langkah|Estimasi|Tips|Cara\s+Membuat|Kalori|Porsi|Waktu|Kalori\/porsi)/i.test(line)) {
                 continue;
             }
             
-            // Clean up potential title
-            const cleaned = line
+            // Skip lines that start with numbers (like "1. Rendang" or "2 porsi")
+            if (/^\d+[\.\s]/.test(line)) {
+                continue;
+            }
+            
+            // Skip lines that are mostly separators
+            if (/^[-=_*#+\s]{3,}$/.test(line)) {
+                continue;
+            }
+            
+            // Skip lines that contain calorie information
+            if (/kalori|kcal|cal/i.test(line)) {
+                continue;
+            }
+            
+            // Clean up potential title - preserve dish names better
+            let cleaned = line
                 .replace(/^#+\s*/, '') // Remove markdown headers
                 .replace(/^Rese?p\s*\d*[:\-\.]?\s*/i, '') // Remove "Resep" prefix
                 .replace(/^Judul\s*[:\-]\s*/i, '') // Remove "Judul" prefix
                 .replace(/^\*\*(.+)\*\*$/, '$1') // Remove bold markdown
+                .replace(/^["'](.+)["']$/, '$1') // Remove quotes
+                .replace(/^:\s*/, '') // Remove leading colon
+                .replace(/\s*:$/, '') // Remove trailing colon
+                .replace(/^\d+[\.\s]+/, '') // Remove leading numbers with dots or spaces
+                .replace(/^\d+\s*-\s*/, '') // Remove "1 - " pattern
                 .trim();
                 
-            if (cleaned && cleaned.length > 3 && cleaned.length < 100) {
-                return cleaned.slice(0, 120);
+            // Enhanced title cleaning - preserve Indonesian dish names
+            if (cleaned) {
+                // Remove more patterns that aren't dish names
+                cleaned = cleaned
+                    .replace(/^(Menu|Masakan|Hidangan|Makanan)\s*[:\-]?\s*/i, '')
+                    .replace(/^(Untuk|Sajian)\s*\d+\s*(porsi|orang)?\s*[:\-]?\s*/i, '')
+                    .replace(/^(Waktu|Durasi)\s*[:\-]?\s*\d+.*[:\-]?\s*/i, '')
+                    .replace(/^(Kalori|Protein|Lemak|Karbohidrat).*[:\-]?\s*/i, '') // Remove nutrition info
+                    .replace(/^\d+\s*(kalori|kcal|cal)\b.*$/i, '') // Remove calorie statements
+                    .trim();
+                
+                // Additional check: skip if still starts with number after cleaning
+                if (/^\d/.test(cleaned)) {
+                    continue;
+                }
+                
+                // Skip if it's nutrition/calorie related
+                if (/^(kalori|kcal|cal|protein|lemak|karbohidrat|gula|natrium)\b/i.test(cleaned)) {
+                    continue;
+                }
+                
+                // Check if it's a good title candidate - more strict filtering
+                if (cleaned && 
+                    cleaned.length >= 2 && // Allow shorter dish names like "Gado-gado"
+                    cleaned.length <= 150 && // Allow longer descriptive names
+                    !/^(dan|atau|juga|serta|dengan|untuk|dari|ke|di|pada|dalam|yang|adalah|akan|sudah|telah|ini|itu|tersebut)$/i.test(cleaned) &&
+                    !/^\d+\s*(menit|jam|porsi|orang|gram|kg|ml|liter|kalori|kcal)$/i.test(cleaned) &&
+                    !/^(per|sekitar|kurang|lebih|total)\s/i.test(cleaned) && // Skip quantity indicators
+                    /[a-zA-Z]/.test(cleaned)) { // Must contain at least one letter
+                    
+                    // Preserve original case for proper nouns (Indonesian dish names)
+                    // Only capitalize if the whole line is lowercase
+                    if (cleaned === cleaned.toLowerCase()) {
+                        cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+                    }
+                    
+                    return cleaned.slice(0, 150);
+                }
             }
         }
         
-        // Fallback: take first non-empty line
-        const firstLine = lines[0];
-        if (firstLine) {
-            const cleaned = firstLine
-                .replace(/^#+\s*/, '')
-                .replace(/^Rese?p\s*\d*[:\-\.]?\s*/i, '')
-                .trim();
-            return (cleaned || firstLine).slice(0, 120);
+        // Fallback: take first substantial line that could be a dish name
+        for (const line of lines) {
+            if (line.length > 2 && 
+                !/^[-=_*#+\s]{3,}$/.test(line) && 
+                !/^(\d+[\.\s]|[-*•]\s)/.test(line) && // Enhanced number detection
+                !/^(Bahan|Langkah|Estimasi|Tips|Cara\s+Membuat|Kalori|Porsi|Waktu)/i.test(line) &&
+                !/kalori|kcal|cal|protein|lemak|karbohidrat/i.test(line)) { // Skip nutrition info
+                
+                let cleaned = line
+                    .replace(/^#+\s*/, '')
+                    .replace(/^Rese?p\s*\d*[:\-\.]?\s*/i, '')
+                    .replace(/^["'](.+)["']$/, '$1')
+                    .replace(/^\d+[\.\s]+/, '') // Enhanced number removal
+                    .replace(/^\d+\s*-\s*/, '') // Remove "1 - " pattern
+                    .trim();
+                    
+                // Skip if still starts with number after cleaning
+                if (/^\d/.test(cleaned)) {
+                    continue;
+                }
+                    
+                if (cleaned && /[a-zA-Z]/.test(cleaned) && 
+                    !/^(kalori|kcal|cal|protein|lemak|karbohidrat)\b/i.test(cleaned)) {
+                    // Preserve case for Indonesian dish names
+                    if (cleaned === cleaned.toLowerCase()) {
+                        cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+                    }
+                    return cleaned.slice(0, 150);
+                }
+            }
         }
         
-        // Last resort: take first sentence
-        const sentence = text.split(/[\.!\?]|\n/)[0]?.trim();
-        return (sentence || 'Resep tanpa judul').slice(0, 120);
+        // Last resort: extract from first meaningful sentence
+        const meaningful = text
+            .replace(/^[-=_*#+\s\n]+/, '') // Remove leading separators
+            .replace(/[-=_*#+\s\n]+$/, '') // Remove trailing separators
+            .trim();
+            
+        if (meaningful) {
+            // Look for the first line that might be a recipe name
+            const firstLines = meaningful.split(/\n/).slice(0, 3); // Check first 3 lines
+            for (const sentence of firstLines) {
+                const trimmed = sentence.trim();
+                if (trimmed && trimmed.length > 2 && 
+                    !/^(Bahan|Langkah|Estimasi|Tips|Cara\s+Membuat|Kalori)/i.test(trimmed) &&
+                    !/^\d+[\.\s]/.test(trimmed) && // Skip lines starting with numbers
+                    !/kalori|kcal|cal|protein|lemak|karbohidrat/i.test(trimmed)) { // Skip nutrition
+                    
+                    let cleaned = trimmed
+                        .replace(/^Rese?p\s*\d*[:\-\.]?\s*/i, '')
+                        .replace(/^["'](.+)["']$/, '$1')
+                        .replace(/^\d+[\.\s]+/, '') // Enhanced number removal
+                        .replace(/^\d+\s*-\s*/, '') // Remove "1 - " pattern
+                        .split(/[\.!\?]/)[0] // Take only the first sentence part
+                        .trim();
+                        
+                    // Skip if still starts with number after cleaning
+                    if (/^\d/.test(cleaned)) {
+                        continue;
+                    }
+                        
+                    if (cleaned && /[a-zA-Z]/.test(cleaned) &&
+                        !/^(kalori|kcal|cal|protein|lemak|karbohidrat)\b/i.test(cleaned)) {
+                        if (cleaned === cleaned.toLowerCase()) {
+                            cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+                        }
+                        return cleaned.slice(0, 150);
+                    }
+                }
+            }
+        }
+        
+        return 'Resep Tanpa Judul';
     } catch {
-        return 'Resep tanpa judul';
+        return 'Resep Tanpa Judul';
     }
 }
 
@@ -804,10 +1025,16 @@ function segmentRecipesFromText(text = '') {
             if (isListStart(t)) return false;
             if (isSectionLine(t)) return false;
             
+            // Skip lines that start with numbers (like "1. Rendang" or "2 porsi")
+            if (/^\d+[\.\s]/.test(t)) return false;
+            
+            // Skip lines that contain calorie/nutrition information
+            if (/kalori|kcal|cal|protein|lemak|karbohidrat/i.test(t)) return false;
+            
             // Check if it looks like a title (not too long, has meaningful content)
             if (t.length > 100) return false;
             
-            // Allow headings like "Resep 1: Rendang", "# Rendang", or standalone titles
+            // Allow headings like "# Rendang" or standalone dish names, but not numbered lists
             return true;
         };
         
@@ -869,7 +1096,19 @@ function segmentRecipesFromText(text = '') {
                 .replace(/^#+\s*/, '') // Remove markdown headers
                 .replace(/^Rese?p\s*\d*[:\-\.]?\s*/i, '') // Remove "Resep" prefix
                 .replace(/^Judul\s*[:\-]\s*/i, '') // Remove "Judul" prefix
+                .replace(/^\d+[\.\s]+/, '') // Remove leading numbers with dots or spaces
+                .replace(/^\d+\s*-\s*/, '') // Remove "1 - " pattern
                 .trim();
+                
+            // Skip if title still starts with number after cleaning
+            if (/^\d/.test(title)) {
+                title = '';
+            }
+            
+            // Skip if title contains calorie/nutrition information
+            if (/kalori|kcal|cal|protein|lemak|karbohidrat/i.test(title)) {
+                title = '';
+            }
                 
             // Fallback to extracting title from the whole block if first line is not good
             if (!title || title.length < 3) {
@@ -899,7 +1138,7 @@ function segmentRecipesFromText(text = '') {
         console.error('Error in segmentRecipesFromText:', error);
         return [
             {
-                title: extractTitleFromText(text) || 'Resep tanpa judul',
+                title: extractTitleFromText(text) || 'Resep Tanpa Judul',
                 text: text || '',
                 html: formatListHtml(text || ''),
             },
