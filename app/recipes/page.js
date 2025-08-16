@@ -144,9 +144,9 @@ export default function Recipes() {
                 <ModelSettings onModelChange={setSelectedModel} />
             <form
                 onSubmit={handleSubmit(onSubmit)}
-                className="grid md:grid-cols-2 gap-4"
+                className="grid md:grid-cols-4 gap-4"
             >
-                <Card>
+                <Card className="md:col-span-1 col-span-4">
                     <label className="text-sm">Bahan yang tersedia</label>
                     <Textarea
                         id="ingredients"
@@ -227,8 +227,16 @@ export default function Recipes() {
                         </Button>
                     </div>
                 </Card>
-                <Card className="h-[60vh] max-h-[60vh] overflow-y-auto">
-                    <h2 className="font-semibold mb-2">Hasil</h2>
+            <Card className="h-[60vh] max-h-[60vh] overflow-y-auto col-span-4 md:col-span-3">
+                    <div className="flex items-center justify-between mb-2">
+                        <h2 className="font-semibold">Hasil</h2>
+                        {(isStreaming || loading) && (
+                            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                                <div className="animate-spin w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full"></div>
+                                <span>{isStreaming ? 'Generating resep...' : 'Loading...'}</span>
+                            </div>
+                        )}
+                    </div>
                     <div
                         ref={respRef}
                         className="max-h-[60vh] overflow-auto pr-1"
@@ -247,10 +255,11 @@ export default function Recipes() {
                                             >
                                                 {seg.title}
                                             </h3>
-                                            <Button
-                                                type="button"
-                                                size="sm"
-                                                onClick={() => {
+                                            {!isStreaming && !loading && !isResponseMeaningless(seg.text) && (
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    onClick={() => {
                                                     try {
                                                         const saved =
                                                             JSON.parse(
@@ -262,24 +271,33 @@ export default function Recipes() {
                                                             buildChecklistFromText(
                                                                 seg.text
                                                             );
+                                                        
+                                                        // Generate unique ID with timestamp and random component
+                                                        const uniqueId = `recipe_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${idx}`;
+                                                        
                                                         const entry = {
-                                                            id:
-                                                                Date.now() +
-                                                                idx,
-                                                            title: seg.title,
+                                                            id: uniqueId,
+                                                            title: seg.title.trim(),
                                                             content: seg.text,
-                                                            pantry,
+                                                            rawHtml: seg.html,
+                                                            pantry: [...pantry], // Copy array
                                                             checklist,
                                                             meta: {
                                                                 query:
                                                                     document.getElementById(
                                                                         'query_inp'
-                                                                    )?.value ||
+                                                                    )?.value?.trim() ||
                                                                     '',
+                                                                model: selectedModel || 'default',
+                                                                segmentIndex: idx,
+                                                                totalSegments: segments.length
                                                             },
                                                             createdAt:
                                                                 new Date().toISOString(),
+                                                            updatedAt:
+                                                                new Date().toISOString(),
                                                         };
+                                                        
                                                         localStorage.setItem(
                                                             'savedRecipes',
                                                             JSON.stringify(
@@ -294,11 +312,22 @@ export default function Recipes() {
                                                                 'savedRecipesUpdated'
                                                             )
                                                         );
-                                                    } catch {}
+                                                        toast({
+                                                            title: 'Resep Disimpan',
+                                                            description: `"${seg.title}" berhasil disimpan dengan ${checklist.totalItems} item checklist.`
+                                                        });
+                                                    } catch (error) {
+                                                        console.error('Error saving recipe:', error);
+                                                        toast({
+                                                            title: 'Error',
+                                                            description: 'Gagal menyimpan resep. Silakan coba lagi.'
+                                                        });
+                                                    }
                                                 }}
                                             >
                                                 Simpan
                                             </Button>
+                                            )}
                                         </div>
                                         <div
                                             className="prose prose-slate dark:prose-invert max-w-none text-sm max-h-40 overflow-auto"
@@ -306,6 +335,21 @@ export default function Recipes() {
                                                 __html: seg.html,
                                             }}
                                         />
+                                        {/* Preview checklist info */}
+                                        {!isStreaming && !loading && (() => {
+                                            const previewChecklist = buildChecklistFromText(seg.text);
+                                            return previewChecklist.totalItems > 0 ? (
+                                                <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                                                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                                        <span>📝 {previewChecklist.bahan.length} bahan</span>
+                                                        <span>•</span>
+                                                        <span>👩‍🍳 {previewChecklist.langkah.length} langkah</span>
+                                                        <span>•</span>
+                                                        <span>✅ {previewChecklist.totalItems} total item</span>
+                                                    </div>
+                                                </div>
+                                            ) : null;
+                                        })()}
                                     </div>
                                 ))}
                             </div>
@@ -319,7 +363,14 @@ export default function Recipes() {
                         )}
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2 absolute bottom-3 left-3">
-                        {segments.length > 1 ? (
+                        {(isStreaming || loading) && resp ? (
+                            <div className="text-sm text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-md">
+                                ⏳ Tunggu AI selesai untuk menyimpan resep
+                            </div>
+                        ) : (
+                            <>
+                        {/* Only show save buttons if we have valid segments or meaningful content */}
+                        {!isStreaming && !loading && segments.length > 1 ? (
                             <Button
                                 type="button"
                                 variant="primary"
@@ -332,25 +383,38 @@ export default function Recipes() {
                                             ) || '[]'
                                         );
                                         const now = Date.now();
+                                        let totalChecklistItems = 0;
+                                        
                                         const entries = segments.map(
-                                            (seg, i) => ({
-                                                id: now + i,
-                                                title: seg.title,
-                                                content: seg.text,
-                                                pantry,
-                                                checklist:
-                                                    buildChecklistFromText(
-                                                        seg.text
-                                                    ),
-                                                meta: {
-                                                    query:
-                                                        document.getElementById(
-                                                            'query_inp'
-                                                        )?.value || '',
-                                                },
-                                                createdAt:
-                                                    new Date().toISOString(),
-                                            })
+                                            (seg, i) => {
+                                                const checklist = buildChecklistFromText(seg.text);
+                                                totalChecklistItems += checklist.totalItems;
+                                                
+                                                const uniqueId = `recipe_${now}_${Math.random().toString(36).substr(2, 9)}_${i}`;
+                                                
+                                                return {
+                                                    id: uniqueId,
+                                                    title: seg.title.trim(),
+                                                    content: seg.text,
+                                                    rawHtml: seg.html,
+                                                    pantry: [...pantry], // Copy array
+                                                    checklist,
+                                                    meta: {
+                                                        query:
+                                                            document.getElementById(
+                                                                'query_inp'
+                                                            )?.value?.trim() || '',
+                                                        model: selectedModel || 'default',
+                                                        segmentIndex: i,
+                                                        totalSegments: segments.length,
+                                                        batchSave: true
+                                                    },
+                                                    createdAt:
+                                                        new Date().toISOString(),
+                                                    updatedAt:
+                                                        new Date().toISOString(),
+                                                };
+                                            }
                                         );
                                         localStorage.setItem(
                                             'savedRecipes',
@@ -365,16 +429,27 @@ export default function Recipes() {
                                             new Event('savedRecipesUpdated')
                                         );
                                         toast({
-                                            title: 'Resep Disimpan',
-                                            description: 'Buka tab Todolist untuk checklist ringkasnya.'
+                                            title: 'Semua Resep Disimpan',
+                                            description: `${segments.length} resep dengan total ${totalChecklistItems} item checklist berhasil disimpan. Buka tab Todolist untuk checklist.`
                                         });
-                                    } catch {}
+                                    } catch (error) {
+                                        console.error('Error saving all recipes:', error);
+                                        toast({
+                                            title: 'Error',
+                                            description: 'Gagal menyimpan beberapa resep. Silakan coba lagi.'
+                                        });
+                                    }
                                 }}
                             >
-                                Simpan Semua
+                                Simpan Semua ({segments.length})
                             </Button>
                         ) : (
-                            segments.length === 1 && (
+                            // Only show single save button if we have exactly one segment OR meaningful content without segments
+                            !isStreaming && !loading && 
+                            (
+                                (segments.length === 1) || 
+                                (segments.length === 0 && resp?.trim() && !isResponseMeaningless(resp))
+                            ) && (
                                 <Button
                                     type="button"
                                     variant="primary"
@@ -382,6 +457,10 @@ export default function Recipes() {
                                     onClick={() => {
                                         try {
                                             if (!resp?.trim()) return;
+                                            
+                                            // Don't save if response is meaningless
+                                            if (isResponseMeaningless(resp)) return;
+                                            
                                             const saved = JSON.parse(
                                                 localStorage.getItem(
                                                     'savedRecipes'
@@ -391,19 +470,29 @@ export default function Recipes() {
                                                 extractTitleFromText(resp);
                                             const checklist =
                                                 buildChecklistFromText(resp);
+                                                
+                                            const uniqueId = `recipe_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_single`;
+                                            
                                             const entry = {
-                                                id: Date.now(),
-                                                title,
+                                                id: uniqueId,
+                                                title: title.trim(),
                                                 content: resp,
-                                                pantry,
+                                                rawHtml: formatListHtml(resp),
+                                                pantry: [...pantry], // Copy array
                                                 checklist,
                                                 meta: {
                                                     query:
                                                         document.getElementById(
                                                             'query_inp'
-                                                        )?.value || '',
+                                                        )?.value?.trim() || '',
+                                                    model: selectedModel || 'default',
+                                                    segmentIndex: 0,
+                                                    totalSegments: 1,
+                                                    singleSave: true
                                                 },
                                                 createdAt:
+                                                    new Date().toISOString(),
+                                                updatedAt:
                                                     new Date().toISOString(),
                                             };
                                             localStorage.setItem(
@@ -420,14 +509,22 @@ export default function Recipes() {
                                             );
                                             toast({
                                                 title: 'Resep Disimpan',
-                                                description: 'Buka tab Todolist untuk checklist ringkasnya.'
+                                                description: `"${title}" berhasil disimpan dengan ${checklist.totalItems} item checklist. Buka tab Todolist untuk checklist.`
                                             });
-                                        } catch {}
+                                        } catch (error) {
+                                            console.error('Error saving single recipe:', error);
+                                            toast({
+                                                title: 'Error',
+                                                description: 'Gagal menyimpan resep. Silakan coba lagi.'
+                                            });
+                                        }
                                     }}
                                 >
                                     Simpan Resep
                                 </Button>
                             )
+                        )}
+                        </>
                         )}
                     </div>
                 </Card>
@@ -440,6 +537,40 @@ export default function Recipes() {
 
 function joinPantry(items) {
     return items.map((p) => p.name).join(', ');
+}
+
+function isResponseMeaningless(text = '') {
+    if (!text || !text.trim()) return true;
+    
+    const raw = text.trim();
+    
+    // Check for common meaningless patterns
+    const meaninglessPatterns = [
+        /^-+$/,  // Just dashes
+        /^=+$/,  // Just equals
+        /^_+$/,  // Just underscores
+        /^\.+$/, // Just dots
+        /^\*+$/, // Just asterisks
+        /^#+$/,  // Just hashes
+        /^[\s\-=_.*#]+$/,  // Only whitespace and separator characters
+        /^---+/,  // Starts with three or more dashes
+        /^===+/,  // Starts with three or more equals
+    ];
+    
+    const isMeaningless = meaninglessPatterns.some(pattern => pattern.test(raw));
+    if (isMeaningless) return true;
+    
+    // Check if content is too short
+    if (raw.length < 10) return true;
+    
+    // Check if it looks like an error message
+    const errorPatterns = [
+        /^(error|gagal|failed|tidak|cannot|unable)/i,
+        /^(maaf|sorry|apologize)/i,
+    ];
+    
+    const isError = errorPatterns.some(pattern => pattern.test(raw));
+    return isError;
 }
 
 function formatListHtml(text = '') {
@@ -546,16 +677,39 @@ function extractTitleFromText(text = '') {
             .split(/\r?\n/)
             .map((s) => s.trim())
             .filter(Boolean);
-        const firstNonList = lines.find((l) => !/^(\d+\.|[-*]\s)/.test(l));
-        if (firstNonList) {
-            const cleaned = firstNonList
+            
+        // Look for a line that looks like a title/header
+        for (const line of lines) {
+            // Skip list items and section headers
+            if (/^(\d+\.|[-*•]\s|Bahan|Langkah|Estimasi|Tips)/i.test(line)) {
+                continue;
+            }
+            
+            // Clean up potential title
+            const cleaned = line
+                .replace(/^#+\s*/, '') // Remove markdown headers
+                .replace(/^Rese?p\s*\d*[:\-\.]?\s*/i, '') // Remove "Resep" prefix
+                .replace(/^Judul\s*[:\-]\s*/i, '') // Remove "Judul" prefix
+                .replace(/^\*\*(.+)\*\*$/, '$1') // Remove bold markdown
+                .trim();
+                
+            if (cleaned && cleaned.length > 3 && cleaned.length < 100) {
+                return cleaned.slice(0, 120);
+            }
+        }
+        
+        // Fallback: take first non-empty line
+        const firstLine = lines[0];
+        if (firstLine) {
+            const cleaned = firstLine
                 .replace(/^#+\s*/, '')
                 .replace(/^Rese?p\s*\d*[:\-\.]?\s*/i, '')
-                .replace(/^Judul\s*[:\-]\s*/i, '');
-            return (cleaned || firstNonList).slice(0, 120);
+                .trim();
+            return (cleaned || firstLine).slice(0, 120);
         }
-        // fallback: take first sentence
-        const sentence = text.split(/\.|\n/)[0];
+        
+        // Last resort: take first sentence
+        const sentence = text.split(/[\.!\?]|\n/)[0]?.trim();
         return (sentence || 'Resep tanpa judul').slice(0, 120);
     } catch {
         return 'Resep tanpa judul';
@@ -566,32 +720,65 @@ function segmentRecipesFromText(text = '') {
     try {
         const raw = text.trim();
         if (!raw) return [];
+        
+        // Check if the text is just separators or meaningless content
+        const meaninglessPatterns = [
+            /^-+$/,  // Just dashes
+            /^=+$/,  // Just equals
+            /^_+$/,  // Just underscores
+            /^\.+$/, // Just dots
+            /^\*+$/, // Just asterisks
+            /^#+$/,  // Just hashes
+            /^[\s\-=_.*#]+$/  // Only whitespace and separator characters
+        ];
+        
+        const isMeaningless = meaninglessPatterns.some(pattern => pattern.test(raw));
+        if (isMeaningless) {
+            return [];
+        }
+        
+        // Check if content is too short or doesn't contain meaningful recipe information
+        if (raw.length < 10) {
+            return [];
+        }
+        
+        // Check if it looks like an error message or separator
+        const errorPatterns = [
+            /^(error|gagal|failed|tidak|cannot|unable)/i,
+            /^-{3,}/, // Three or more dashes at start
+            /^={3,}/, // Three or more equals at start
+        ];
+        
+        const isError = errorPatterns.some(pattern => pattern.test(raw));
+        if (isError) {
+            return [];
+        }
+        
         const lines = raw.split(/\r?\n/);
-        const isListStart = (s) => /^\s*(?:\d+\.|[-*])\s+/.test(s);
+        const isListStart = (s) => /^\s*(?:\d+\.|[-*•])\s+/.test(s);
         const isSectionLine = (s) =>
-            /^(?:\d+\.|)\s*(Bahan|Langkah|Estimasi|Tips)/i.test(s.trim());
+            /^(?:\d+\.|)\s*(Bahan|Langkah|Estimasi|Tips|Cara\s+Membuat)/i.test(s.trim());
+            
         const looksLikeTitle = (s) => {
             const t = s.trim();
-            if (!t) return false;
+            if (!t || t.length < 3) return false;
             if (isListStart(t)) return false;
             if (isSectionLine(t)) return false;
-            // Allow headings like "Resep 1: Rendang" or "# Rendang"
+            
+            // Check if it looks like a title (not too long, has meaningful content)
+            if (t.length > 100) return false;
+            
+            // Allow headings like "Resep 1: Rendang", "# Rendang", or standalone titles
             return true;
         };
+        
         const titleIdx = [];
         for (let i = 0; i < lines.length; i++) {
             if (looksLikeTitle(lines[i])) {
-                // sanity: ensure within next 6 lines there is a section hint, else might be paragraph
+                // Ensure within next 8 lines there is a section hint or it's the first potential title
                 let hasSection = false;
-                for (
-                    let j = i + 1;
-                    j <= Math.min(i + 6, lines.length - 1);
-                    j++
-                ) {
-                    if (
-                        isSectionLine(lines[j]) ||
-                        /Bahan|Langkah/i.test(lines[j])
-                    ) {
+                for (let j = i + 1; j <= Math.min(i + 8, lines.length - 1); j++) {
+                    if (isSectionLine(lines[j]) || /Bahan|Langkah|Cara\s+Membuat/i.test(lines[j])) {
                         hasSection = true;
                         break;
                     }
@@ -601,13 +788,15 @@ function segmentRecipesFromText(text = '') {
                 }
             }
         }
+        
         if (titleIdx.length === 0) {
-            // fallback to blank-line split
+            // Try alternative splitting by blank lines
             const parts = raw
                 .split(/\n\s*\n+/)
                 .map((p) => p.trim())
                 .filter(Boolean);
-            if (parts.length <= 1)
+                
+            if (parts.length <= 1) {
                 return [
                     {
                         title: extractTitleFromText(raw),
@@ -615,55 +804,65 @@ function segmentRecipesFromText(text = '') {
                         html: formatListHtml(raw),
                     },
                 ];
+            }
+            
             return parts.map((p) => {
-                const plines = p.split(/\r?\n/);
-                const content = plines.slice(1).join('\n'); // drop first line as title
+                const title = extractTitleFromText(p);
                 return {
-                    title: extractTitleFromText(p),
+                    title: title || 'Resep tanpa judul',
                     text: p,
-                    html: formatListHtml(content),
+                    html: formatListHtml(p),
                 };
             });
         }
+        
         // Build segments from title indices
         const segments = [];
         for (let k = 0; k < titleIdx.length; k++) {
             const start = titleIdx[k];
-            const end =
-                k < titleIdx.length - 1 ? titleIdx[k + 1] : lines.length;
+            const end = k < titleIdx.length - 1 ? titleIdx[k + 1] : lines.length;
             const block = lines.slice(start, end).join('\n').trim();
+            
             if (!block) continue;
+            
             const firstLine = lines[start].trim();
-            const cleanedTitle = firstLine
-                .replace(/^#+\s*/, '')
-                .replace(/^Rese?p\s*\d*[:\-\.]?\s*/i, '')
-                .replace(/^Judul\s*[:\-]\s*/i, '');
-            const title = (cleanedTitle || extractTitleFromText(block)).slice(
-                0,
-                120
-            );
-            const content = block.split(/\r?\n/).slice(1).join('\n'); // drop first line (title) from html content
+            let title = firstLine
+                .replace(/^#+\s*/, '') // Remove markdown headers
+                .replace(/^Rese?p\s*\d*[:\-\.]?\s*/i, '') // Remove "Resep" prefix
+                .replace(/^Judul\s*[:\-]\s*/i, '') // Remove "Judul" prefix
+                .trim();
+                
+            // Fallback to extracting title from the whole block if first line is not good
+            if (!title || title.length < 3) {
+                title = extractTitleFromText(block);
+            }
+            
+            title = (title || 'Resep tanpa judul').slice(0, 120);
+            
+            // For HTML content, preserve the title in the content but use better formatting
+            const content = block;
+            
             segments.push({
                 title,
                 text: block,
                 html: formatListHtml(content),
             });
         }
-        return segments.length
-            ? segments
-            : [
-                  {
-                      title: extractTitleFromText(raw),
-                      text: raw,
-                      html: formatListHtml(raw),
-                  },
-              ];
-    } catch {
+        
+        return segments.length ? segments : [
+            {
+                title: extractTitleFromText(raw),
+                text: raw,
+                html: formatListHtml(raw),
+            },
+        ];
+    } catch (error) {
+        console.error('Error in segmentRecipesFromText:', error);
         return [
             {
-                title: extractTitleFromText(text),
-                text,
-                html: formatListHtml(text),
+                title: extractTitleFromText(text) || 'Resep tanpa judul',
+                text: text || '',
+                html: formatListHtml(text || ''),
             },
         ];
     }
@@ -671,8 +870,21 @@ function segmentRecipesFromText(text = '') {
 
 function buildChecklistFromText(text = '') {
     const { bahan, langkah } = parseRecipeSections(text);
-    const toItems = (arr) => arr.map((t) => ({ text: t, done: false }));
-    return { bahan: toItems(bahan), langkah: toItems(langkah) };
+    
+    const toItems = (arr, type) => arr.map((t, index) => ({ 
+        id: `${type}_${Date.now()}_${index}`,
+        text: t, 
+        done: false,
+        type: type,
+        createdAt: new Date().toISOString()
+    }));
+    
+    return { 
+        bahan: toItems(bahan, 'bahan'), 
+        langkah: toItems(langkah, 'langkah'),
+        totalItems: bahan.length + langkah.length,
+        completedItems: 0
+    };
 }
 
 function parseRecipeSections(text = '') {
@@ -680,33 +892,51 @@ function parseRecipeSections(text = '') {
         const lines = (text || '').split(/\r?\n/);
         let section = '';
         const out = { bahan: [], langkah: [] };
+        
         const push = (s) => {
             if (!s) return;
-            const clean = s.replace(/^[-*\d\.\)]+\s*/, '').trim();
+            // Better cleaning - handle various list formats
+            const clean = s
+                .replace(/^[-*•]\s*/, '') // bullet points
+                .replace(/^\d+\.\s*/, '') // numbered lists
+                .replace(/^\(\d+\)\s*/, '') // numbered with parentheses
+                .replace(/^[a-zA-Z]\.\s*/, '') // lettered lists
+                .trim();
+            
             if (!clean) return;
-            if (section === 'bahan') out.bahan.push(clean);
-            else if (section === 'langkah') out.langkah.push(clean);
+            
+            if (section === 'bahan') {
+                out.bahan.push(clean);
+            } else if (section === 'langkah') {
+                out.langkah.push(clean);
+            }
         };
+        
         for (const raw of lines) {
             const line = raw.trim();
             if (!line) continue;
-            if (/^Bahan\b/i.test(line)) {
+            
+            // Detect section headers - more flexible patterns
+            if (/^(Bahan[-\s]?[-\s]?bahan|Ingredients?|Bahan)\s*:?$/i.test(line)) {
                 section = 'bahan';
                 continue;
             }
-            if (/^Langkah(\s+Masak)?\b/i.test(line)) {
+            if (/^(Langkah[-\s]?[-\s]?langkah|Cara\s+Membuat|Langkah(\s+Masak)?|Instructions?|Petunjuk)\s*:?$/i.test(line)) {
                 section = 'langkah';
                 continue;
             }
-            // stop at other headings
-            if (/^(Estimasi|Tips)\b/i.test(line)) {
+            
+            // Stop at other headings
+            if (/^(Estimasi|Tips|Catatan|Notes?|Nutrition|Kalori)\b/i.test(line)) {
                 section = '';
                 continue;
             }
+            
             if (section) {
                 push(line);
             }
         }
+        
         return out;
     } catch {
         return { bahan: [], langkah: [] };

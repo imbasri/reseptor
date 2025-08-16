@@ -55,75 +55,43 @@ export default function ModelSettings({ onModelChange }) {
   }, [])
 
   return (
-    <Card className="p-4 mb-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-sm">Model Ollama</h3>
-        <Button 
-          onClick={fetchModels} 
-          size="sm" 
-          variant="ghost"
-          loading={loading}
-        >
-          🔄 Refresh
-        </Button>
-      </div>
+    <div className="flex items-center gap-2 mb-3 p-2 bg-slate-50 dark:bg-slate-800/50 rounded border border-slate-200 dark:border-slate-700">
+      <span className="text-sm text-slate-600 dark:text-slate-400">🤖</span>
+      <select
+        value={selectedModel}
+        onChange={(e) => handleModelSelect(e.target.value)}
+        disabled={loading || models.length === 0}
+        className="text-sm border-0 dark:bg-slate-800/50 bg-transparent text-slate-700 dark:text-slate-300 flex-1 min-w-0 focus:outline-none"
+      >
+        {models.length === 0 ? (
+          <option value="">Loading models...</option>
+        ) : (
+          models.map((model) => (
+            <option key={model.name} value={model.name} className='dark:bg-slate-800/50 bg-transparent text-slate-700 dark:text-slate-300'>
+              {model.name} ({model.size ? `${(model.size / 1024 / 1024 / 1024).toFixed(1)}GB` : 'Unknown'})
+            </option>
+          ))
+        )}
+      </select>
+      
+      <button 
+        onClick={fetchModels} 
+        disabled={loading}
+        className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 p-1 rounded transition-colors"
+        title="Refresh models"
+      >
+        {loading ? (
+          <span className="animate-spin">🔄</span>
+        ) : (
+          '↻'
+        )}
+      </button>
       
       {error && (
-        <div className="text-red-600 text-xs mb-2 p-2 bg-red-50 dark:bg-red-900/20 rounded">
-          {error}
-        </div>
+        <span className="text-xs text-red-500" title={error}>
+          ⚠️
+        </span>
       )}
-      
-      {host && (
-        <div className="text-xs text-gray-500 mb-2">
-          Host: {host}
-        </div>
-      )}
-      
-      {selectedModel && (
-        <div className="text-xs text-blue-600 dark:text-blue-400 mb-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded">
-          🎯 Model aktif: <strong>{selectedModel}</strong>
-        </div>
-      )}
-      
-      {models.length > 0 ? (
-        <div className="space-y-2">
-          <div className="text-xs text-gray-600">
-            {models.length} model tersedia - Pilih model:
-          </div>
-          <div className="grid grid-cols-1 gap-1 max-h-48 overflow-y-auto">
-            {models.map((model) => (
-              <button
-                key={model.name}
-                onClick={() => handleModelSelect(model.name)}
-                className={`flex items-center justify-between p-2 rounded text-xs text-left transition-colors ${
-                  selectedModel === model.name
-                    ? 'bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-600'
-                    : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                <div className="flex-1">
-                  <div className="font-medium flex items-center">
-                    {selectedModel === model.name && '✓ '}
-                    {model.name}
-                    {model.name.includes('vision') && ' 👁️'}
-                  </div>
-                  <div className="text-gray-500">
-                    {model.size ? `${(model.size / 1024 / 1024 / 1024).toFixed(1)}GB` : 'Unknown size'}
-                  </div>
-                </div>
-                <div className="text-gray-400 text-xs">
-                  {model.digest}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : !loading ? (
-        <div className="text-gray-500 text-xs">
-          Tidak ada model ditemukan. Pastikan Ollama berjalan dan ada model yang terinstall.
-        </div>
-      ) : null}
-    </Card>
+    </div>
   )
 }
