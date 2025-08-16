@@ -11,7 +11,7 @@ services:
       - ollama_data:/root/.ollama
     environment:
       - OLLAMA_HOST=0.0.0.0
-    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && (ollama list | grep -q 'granite3.3:8b' || ollama pull granite3.3:8b) && tail -f /dev/null"]
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && (ollama list | grep -q 'granite3.3:8b' || ollama run granite3.3:8b) && tail -f /dev/null"]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
@@ -46,7 +46,7 @@ services:
         echo '📥 Checking if granite3.3:8b already exists...' &&
         if ! ollama list | grep -q 'granite3.3:8b'; then
           echo '📦 Pulling granite3.3:8b model (this may take 5-15 minutes)...' &&
-          ollama pull granite3.3:8b &&
+          ollama run granite3.3:8b &&
           echo '✅ Model granite3.3:8b successfully downloaded!'
         else
           echo '✅ Model granite3.3:8b already exists!'
