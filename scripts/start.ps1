@@ -2,7 +2,7 @@
 Write-Host "🚀 Starting Reseptor with Ollama..." -ForegroundColor Green
 Write-Host "📦 This will:" -ForegroundColor Yellow
 Write-Host "   - Start Ollama service"
-Write-Host "   - Download granite3.3:8b model automatically"
+Write-Host "   - Download granite3.3:8b model automatically (if not exists)"
 Write-Host "   - Start Reseptor web application"
 Write-Host ""
 
@@ -25,6 +25,12 @@ Write-Host "   - Reseptor: http://localhost:3000"
 Write-Host ""
 Write-Host "📥 Model download will happen automatically in background" -ForegroundColor Cyan
 Write-Host "   Check progress: docker-compose logs -f ollama-init"
+Write-Host "   Monitor containers: docker-compose ps"
+Write-Host ""
+Write-Host "⚡ Additional commands:" -ForegroundColor Magenta
+Write-Host "   Install more models: .\scripts\install-models.ps1"
+Write-Host "   Check models: docker exec reseptor-ollama ollama list"
+Write-Host "   Stop services: docker-compose down"
 Write-Host ""
 Write-Host "🎉 Once ready, open: http://localhost:3000" -ForegroundColor Green
 Write-Host ""

@@ -40,13 +40,19 @@ services:
       - OLLAMA_HOST=http://ollama:11434
     command: >
       bash -c "
-        echo 'Waiting for Ollama to be ready...' &&
-        sleep 10 &&
-        echo 'Pulling granite3.3:8b model...' &&
-        ollama pull granite3.3:8b &&
-        echo 'Model granite3.3:8b successfully pulled!' &&
-        echo 'Available models:' &&
-        ollama list
+        echo '🔧 Waiting for Ollama to be ready...' &&
+        sleep 15 &&
+        echo '📥 Checking if granite3.3:8b already exists...' &&
+        if ! ollama list | grep -q 'granite3.3:8b'; then
+          echo '📦 Pulling granite3.3:8b model (this may take 5-15 minutes)...' &&
+          ollama pull granite3.3:8b &&
+          echo '✅ Model granite3.3:8b successfully downloaded!'
+        else
+          echo '✅ Model granite3.3:8b already exists!'
+        fi &&
+        echo '📋 Available models:' &&
+        ollama list &&
+        echo '🎉 Ollama setup complete!'
       "
     restart: "no"
 

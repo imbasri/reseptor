@@ -10,12 +10,33 @@
 ### One-Click Setup
 
 ```powershell
-# Windows PowerShell
+# Windows PowerShell - Full setup with model download
 .\scripts\start.ps1
 
+# Test complete setup
+.\scripts\test-setup.ps1
+
+# Monitor status
+.\scripts\status.ps1
+
+# Install additional models
+.\scripts\install-models.ps1
+```
+
+```bash
 # Linux/Mac Bash
 ./scripts/start.sh
+
+# Install additional models
+./scripts/install-models.sh
 ```
+
+### What Happens During Setup
+
+1. **Ollama Service**: Starts on port 11434 with health checks
+2. **Model Download**: Auto-downloads `granite3.3:8b` (~4.9GB) if not exists
+3. **App Service**: Starts Reseptor on port 3000 after model ready
+4. **Health Monitoring**: Ensures all services are ready before proceeding
 
 ### Manual Setup
 

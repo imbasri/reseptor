@@ -1,30 +1,34 @@
+
 # 🍳 Reseptor - Asisten Masak Keluarga
 
 **Next.js + Ollama AI** untuk asisten kuliner lokal dan privat
 
 🍳 **Kelola pantry, temukan resep sehat, simpan resep favorit, dan kelola todolist memasak.** Semua lokal via Ollama + Granite — cepat, privat, tanpa login.
 
+
 ## ✨ Fitur Utama
 
-- 🥘 **Generator Resep AI** - Buat resep berdasarkan bahan pantry dengan Ollama
-- 📝 **Todolist Masak** - Checklist langkah masak dengan edit interaktif  
-- 🗂️ **Manajemen Pantry** - Kelola bahan makanan dengan qty, satuan, dan kategori
-- 💬 **Chat dengan Granite** - Konsultasi masak dan gizi dengan AI lokal
-- 🎯 **Model Selector** - Pilih model Ollama sesuai kebutuhan dan hardware
-- 🌙 **Dark/Light Mode** - UI responsif dengan tema yang bisa beralih
-- 💾 **Simpan Resep** - Koleksi pribadi resep favorit tersimpan lokal
-- 🔒 **100% Privat** - Semua data tersimpan di browser, tidak ada cloud
+- 🥘 **Generator Resep AI**: Buat resep otomatis dari bahan pantry dengan Ollama
+- 📝 **Todolist Masak**: Checklist langkah masak yang bisa diedit dan disimpan
+- 🗂️ **Manajemen Pantry**: Kelola bahan makanan dengan jumlah, satuan, dan kategori
+- 💬 **Chat AI Kuliner**: Konsultasi masak & gizi dengan Granite AI lokal
+- 🎯 **Model Selector**: Pilih model Ollama sesuai kebutuhan hardware
+- 🌙 **Dark/Light Mode**: UI responsif, tema bisa diganti
+- 💾 **Simpan Resep Favorit**: Koleksi pribadi resep favorit, tersimpan lokal
+- 🔒 **100% Privat**: Semua data di browser, tanpa cloud, tanpa login
+
 
 ## 🚀 Prasyarat
 
-- [Ollama](https://ollama.ai) sudah terinstall dan running
+- [Ollama](https://ollama.ai) sudah terinstall & berjalan
 - [Node.js](https://nodejs.org) 18+ (untuk development)
 - [Docker](https://docker.com) & Docker Compose (untuk deployment)
-- Model Ollama minimal 1 model terinstall (misal: `granite3.3:8b`, `llama3.2:3b`)
+- Minimal 1 model Ollama terinstall (misal: `granite3.3:8b`, `llama3.2:3b`)
 
-## 📦 Setup & Installation
 
-### Option 1: Local Development
+## 📦 Setup & Instalasi
+
+### Opsi 1: Jalankan Lokal (Development)
 
 ```bash
 # Clone repository
@@ -34,41 +38,57 @@ cd reseptor
 # Install dependencies
 npm install
 
-# Setup environment (optional)
-cp .env.example .env.local
+# (Opsional) Setup environment
+echo "OLLAMA_HOST=http://localhost:11434" > .env.local
 
-# Pastikan Ollama running dan pull model
+# Pastikan Ollama sudah running & model sudah di-pull
 ollama pull granite3.3:8b
 
-# Start development server
+# Jalankan server development
 npm run dev
 ```
 
-Akses aplikasi di: `http://localhost:3000`
+Akses aplikasi di: [http://localhost:3000](http://localhost:3000)
 
-### Option 2: Docker Deployment
 
-**Quick Start** - Auto-download `granite3.3:8b` model:
+### Opsi 2: Jalankan via Docker (Rekomendasi)
+
+**Quick Start (Otomatis download model):**
 
 ```powershell
 # Windows PowerShell
 .\scripts\start.ps1
+
+# Pantau progress download model
+docker-compose logs -f ollama-init
+
+# Cek status semua service
+.\scripts\status.ps1
 ```
 
 ```bash
 # Linux/macOS
 ./scripts/start.sh
+
+# Pantau progress download model
+docker-compose logs -f ollama-init
 ```
 
-**Manual Setup:**
+**Manual Docker:**
 ```bash
-# Pull model yang diinginkan
+# Pull model (opsional)
 ollama pull granite3.3:8b
-# atau model lain: llama3.2:3b, codestral:latest
 
-# Start services
+# Jalankan semua service
 docker-compose up -d
+
+# Cek status
+docker-compose ps
 ```
+
+**URL setelah setup:**
+- 🌐 **Aplikasi**: [http://localhost:3000](http://localhost:3000)
+- 🤖 **Ollama API**: [http://localhost:11434](http://localhost:11434)
 
 ## ⚙️ Konfigurasi
 
@@ -117,6 +137,30 @@ OLLAMA_HOST=http://host.docker.internal:11434
 3. Klik **Refresh Models** untuk update daftar model terbaru
 4. Model terpilih otomatis tersimpan dan digunakan untuk semua fitur AI
 
+### Install Model Tambahan
+
+```powershell
+# Windows - Interactive installer
+.\scripts\install-models.ps1
+
+# Manual install via Docker
+docker exec reseptor-ollama ollama pull llama3.2:3b
+```
+
+```bash
+# Linux/macOS - Interactive installer
+./scripts/install-models.sh
+
+# Manual install
+ollama pull llama3.2:3b
+```
+
+**Model Recommendations:**
+- `granite3.3:8b` (4.9GB) - Default, optimal untuk resep
+- `llama3.2:3b` (3GB) - Fast, good untuk chat
+- `llama3.2:1b` (1GB) - Very fast, basic
+- `llama3.2-vision:11b` (7GB) - Image analysis (future feature)
+
 ## 🏗️ Struktur Aplikasi
 
 ```
@@ -143,6 +187,87 @@ OLLAMA_HOST=http://host.docker.internal:11434
 └── docker-compose.yml       # Multi-service deployment
 ```
 
+## � Docker Deployment
+
+### Quick Start dengan Auto-Model Download
+
+```powershell
+# Windows - Download granite3.3:8b otomatis
+.\scripts\start.ps1
+
+# Monitor download progress
+docker-compose logs -f ollama-init
+
+# Check status semua service
+.\scripts\status.ps1
+```
+
+```bash
+# Linux/macOS - Download granite3.3:8b otomatis  
+./scripts/start.sh
+
+# Monitor download progress
+docker-compose logs -f ollama-init
+```
+
+### Monitor Model Download
+
+```bash
+# Check download progress (5-15 menit)
+docker-compose logs -f ollama-init
+
+# Verify model available
+docker exec reseptor-ollama ollama list
+
+# Check all services
+docker-compose ps
+```
+
+**Download time**: ~5-15 menit tergantung internet (granite3.3:8b ~4.9GB)
+
+### Docker Services
+
+- **reseptor**: Next.js app (port 3000)
+- **ollama**: Ollama server (port 11434)  
+- **ollama-init**: Auto-download granite3.3:8b (one-time)
+
+### Useful Docker Commands
+
+```bash
+# Start services
+docker-compose up -d
+
+# Stop services
+docker-compose down
+
+# Reset everything (hapus models)
+docker-compose down -v
+
+# Rebuild application
+docker-compose build reseptor
+
+# View logs
+docker-compose logs -f [service-name]
+
+# Check resource usage
+docker stats
+```
+
+### Install Additional Models
+
+```powershell
+# Windows - Interactive installer
+.\scripts\install-models.ps1
+```
+
+```bash
+# Linux/macOS - Interactive installer  
+./scripts/install-models.sh
+
+# Manual via Docker
+docker exec reseptor-ollama ollama pull llama3.2:3b
+```
+
 ## 🛠️ API Endpoints
 
 ### Core APIs
@@ -167,29 +292,6 @@ fetch('/api/recipes', {
   body: JSON.stringify({ ingredients: ['ayam', 'bawang'] })
 })
 ```
-
-## 🐳 Docker Deployment
-
-### Quick Start
-
-```powershell
-# Windows - Auto download granite3.3:8b
-.\scripts\start.ps1
-```
-
-```bash
-# Linux/macOS - Auto download granite3.3:8b  
-./scripts/start.sh
-```
-
-### Monitor Setup
-
-```bash
-# Check download progress
-docker-compose logs -f ollama-init
-
-# Verify model installed
-docker exec -it kokita_ollama ollama list
 
 # Check application status
 docker-compose ps
@@ -263,8 +365,100 @@ curl http://localhost:11434/api/tags
 ollama serve
 
 # Test connection
-curl http://localhost:11434/api/generate -d '{"model":"granite3.3:8b","prompt":"hello"}'
+curl -X POST http://localhost:11434/api/generate \
+  -d '{"model":"granite3.3:8b","prompt":"hello","stream":false}'
 ```
+
+### Docker Issues
+
+```bash
+# Reset all containers
+docker-compose down -v
+docker-compose up -d
+
+# Check service logs
+docker-compose logs reseptor
+docker-compose logs ollama
+docker-compose logs ollama-init
+
+# Verify model installation
+docker exec reseptor-ollama ollama list
+
+# Check resource usage
+docker stats
+```
+
+### Model Issues
+
+**Model tidak tersedia**
+- Verify model pulled: `ollama list`
+- Check spelling model name
+- Use Model Selector untuk pilih model lain
+- Pull model manual: `ollama pull <model-name>`
+
+**Model lambat/error**
+- Check hardware requirements (RAM minimal 8GB untuk model 3B)
+- Monitor resource usage: `docker stats`
+- Try model yang lebih kecil: `llama3.2:1b`
+
+### Build Issues
+
+```bash
+# Check build errors
+npm run build
+
+# Clear Next.js cache
+rm -rf .next
+npm run build
+
+# Check dependencies
+npm install
+npm audit fix
+```
+
+### Performance Tips
+
+- **Hardware**: Gunakan model sesuai RAM (3B=8GB, 8B=16GB+)
+- **Concurrency**: Set `OLLAMA_NUM_PARALLEL` untuk multiple requests
+- **Storage**: Pastikan cukup disk space untuk model download
+- **Network**: Untuk Docker, pastikan port 11434 tidak terblokir
+
+### Common Error Messages
+
+**"Failed to fetch models"**
+- Check Ollama service running: `ollama serve`
+- Verify host configuration: `OLLAMA_HOST=http://localhost:11434`
+- Test API manually: `curl http://localhost:11434/api/tags`
+
+**"Model not found"**
+- List available models: `ollama list`
+- Pull missing model: `ollama pull granite3.3:8b`
+- Use Model Selector to pick available model
+
+**"Port 3000 already in use"**
+- Find process: `netstat -ano | findstr :3000`
+- Kill process or use different port: `PORT=3001 npm run dev`
+
+
+## 📱 Fitur per Halaman
+
+### 🏠 Homepage (`/`)
+- Ringkasan aplikasi, quick links ke fitur utama, dan highlight value proposition.
+
+### 🥘 Recipes (`/recipes`)
+- Input bahan pantry, generate resep AI, simpan ke favorit, export/share resep.
+
+### 📝 Todolist (`/todolist`)
+- Checklist langkah masak interaktif, edit langkah, progress tracking per resep.
+
+### 💬 Chat (`/chat`)
+- Chat dengan Granite AI, konsultasi masak/gizi, streaming response, context-aware.
+
+### 🔧 Model Settings
+- Pilih/switch model Ollama real-time, refresh list model, rekomendasi model.
+
+### 🔍 Detect (`/detect`)
+- (Coming soon) Upload foto makanan, analisis nutrisi & saran resep AI.
 
 ### Docker Issues
 
@@ -302,56 +496,30 @@ docker exec -it kokita_ollama ollama list
 - **Storage**: Pastikan cukup disk space untuk model download
 - **Network**: Untuk Docker, pastikan port 11434 tidak terblokir
 
-## 📱 Fitur per Halaman
+## 📝 Kontribusi
 
-### 🏠 Homepage (`/`)
-- Overview aplikasi dengan value proposition
-- Quick links ke fitur utama (Recipes, Todolist, Chat)
-- Feature cards yang menjelaskan capabilities
-- Responsive hero section dengan gradient
+### Cara Berkontribusi
+1. Fork repo: `https://github.com/imbasri/reseptor`
+2. Buat branch fitur: `git checkout -b feature/nama-fitur`
+3. Ikuti gaya penulisan & struktur kode yang ada
+4. Test dengan beberapa model Ollama
+5. Update dokumentasi jika ada perubahan API/fitur
+6. Pull Request dengan deskripsi jelas
 
-### 🥘 Recipes (`/recipes`) 
-- Input bahan-bahan pantry
-- Generate resep AI berdasarkan ingredients
-- Save resep ke koleksi favorites
-- Share dan export resep
+### Panduan Kode
+- **JavaScript**: ES6+, async/await
+- **React**: Functional + hooks
+- **Styling**: Tailwind CSS, minim custom CSS
+- **API**: RESTful, error handling baik
+- **Testing**: Manual dengan berbagai model
 
-### 📝 Todolist (`/todolist`)
-- Checklist langkah masak interaktif  
-- Edit steps secara real-time
-- Mark complete/incomplete steps
-- Progress tracking per resep
-
-### 💬 Chat (`/chat`)
-- Chat interface dengan Granite AI
-- Konsultasi masak, gizi, dan tips kuliner
-- Streaming responses untuk experience yang smooth
-- Context-aware conversations
-
-### 🔧 Model Settings (Component)
-- Real-time list model Ollama tersedia
-- One-click model switching
-- Model priority dan recommendations
-- Refresh model list functionality
-
-## 📝 Contributing
-
-### Development Workflow
-
-1. Fork repository dari GitHub
-2. Create feature branch: `git checkout -b feature/nama-fitur`
-3. Follow existing code style dan patterns
-4. Test dengan multiple Ollama models
-5. Update documentation jika ada perubahan API
-6. Submit Pull Request dengan description lengkap
-
-### Code Guidelines
-
-- **JavaScript**: Modern ES6+ dengan async/await
-- **React**: Functional components dengan hooks
-- **Styling**: Tailwind CSS classes, minimal custom CSS
-- **API**: RESTful endpoints dengan proper error handling
-- **Testing**: Manual testing dengan berbagai model Ollama
+### Area Kontribusi
+- 🎨 UI/UX
+- 🤖 Integrasi AI/model
+- 🐳 DevOps/Docker
+- 📖 Dokumentasi
+- 🧪 Testing
+- 🌐 Internationalization
 
 ## 📄 License
 
@@ -365,3 +533,16 @@ MIT License - lihat file `LICENSE` untuk detail lengkap.
 - **[Tailwind CSS](https://tailwindcss.com)** - Utility-first CSS framework
 - **[Radix UI](https://radix-ui.com)** - Accessible primitive components
 - **[Lucide Icons](https://lucide.dev)** - Beautiful & consistent icon set
+
+## 🔗 Links
+
+- **Repository**: [https://github.com/imbasri/reseptor](https://github.com/imbasri/reseptor)
+- **Docker Guide**: [DOCKER.md](./DOCKER.md)
+- **Demo**: `http://localhost:3000` (after setup)
+- **Ollama**: [https://ollama.ai](https://ollama.ai)
+
+---
+
+**Made with ❤️ for Indonesian home cooks**
+
+*Reseptor membantu keluarga Indonesia memasak dengan lebih cerdas menggunakan AI lokal yang privat dan aman.*
