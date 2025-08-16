@@ -175,8 +175,8 @@ export default function Chat(){
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-      <div className="container mx-auto px-4 py-6 space-y-6">
+    <div className="bg-gradient-to-br from-blue-50 md:h-[80vh] overflow-y-auto  via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+      <div className="container mx-auto py-4 px-10 space-y-6">
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
             AI Chat Assistant
@@ -189,7 +189,7 @@ export default function Chat(){
         <ModelSettings onModelChange={setSelectedModel} />
         
         <Card className="shadow-xl border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
-          <div className="h-[60vh] overflow-y-auto space-y-4 p-6 scroll-smooth">
+          <div className="overflow-y-auto space-y-4 p-6 scroll-smooth ">
             {messages.length === 0 && (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center space-y-6 max-w-md">

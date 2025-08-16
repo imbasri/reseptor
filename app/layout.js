@@ -17,16 +17,20 @@ export default function RootLayout({ children }) {
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
             </head>
             <body 
-                className="min-h-screen bg-gradient-to-b from-white to-slate-50 dark:from-darkbg dark:to-[#0e1428] text-slate-900 dark:text-slate-100"
+                className="min-h-screen bg-gradient-to-b from-white to-slate-50 dark:from-darkbg dark:to-[#0e1428] text-slate-900 dark:text-slate-100 overflow-x-hidden"
                 suppressHydrationWarning
             >
                 <GlobalErrorHandler />
                 <ThemeProvider>
-                    <Navbar />
-                    <main className="container mx-auto px-4 py-6 overflow-y-auto h-[80vh]">
-                        {children}
-                    </main>
-                    <Footer />
+                    <div className="flex flex-col min-h-screen">
+                        <Navbar />
+                        <main className="flex-1 container mx-auto  py-6 max-w-7xl w-full">
+                            <div className="min-h-full overflow-hidden">
+                                {children}
+                            </div>
+                        </main>
+                        <Footer />
+                    </div>
                 </ThemeProvider>
             </body>
         </html>

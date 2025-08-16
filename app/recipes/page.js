@@ -136,121 +136,146 @@ export default function Recipes() {
     // removed planner integration
 
     return (
-        <>
-            <div className="space-y-4">
-                <h1 className="text-2xl font-bold">
+        <div className="flex flex-col min-h-0 space-y-4 p-4 overflow-hidden">
+            <div className="flex-none">
+                <h1 className="text-2xl font-bold text-center sm:text-left">
                     Resep Dinamis dengan Granite AI
                 </h1>
-                <ModelSettings onModelChange={setSelectedModel} />
+                <div className="mt-4">
+                    <ModelSettings onModelChange={setSelectedModel} />
+                </div>
+            </div>
+            
             <form
                 onSubmit={handleSubmit(onSubmit)}
-                className="grid md:grid-cols-4 gap-4"
+                className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-4 gap-4"
             >
-                <Card className="md:col-span-1 col-span-4">
-                    <label className="text-sm">Bahan yang tersedia</label>
-                    <Textarea
-                        id="ingredients"
-                        placeholder="tomat, tahu, bayam"
-                        {...register('ingredients')}
-                    />
-                    <div className="mt-2 flex gap-2">
-                        <Input
-                            placeholder="Tambah bahan (mis. telur)"
-                            value={newItem}
-                            onChange={(e) => setNewItem(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    addPantry();
-                                }
-                            }}
-                        />
-                        <Button type="button" onClick={addPantry}>
-                            Tambah
-                        </Button>
-                    </div>
-                    {pantry?.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                            {pantry.map((p, i) => (
-                                <span
-                                    key={i}
-                                    className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 dark:bg-white/10 text-sm"
-                                >
-                                    {p.name}
-                                    <button
-                                        type="button"
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            removePantry(i);
-                                        }}
-                                        className="opacity-70 hover:opacity-100"
-                                    >
-                                        ×
-                                    </button>
-                                </span>
-                            ))}
+                <Card className="lg:col-span-1 col-span-1 flex flex-col">
+                    <div className="flex-1 space-y-4">
+                        <div>
+                            <label className="text-sm font-medium">Bahan yang tersedia</label>
+                            <Textarea
+                                id="ingredients"
+                                placeholder="tomat, tahu, bayam"
+                                className="mt-1 min-h-[80px] resize-none"
+                                {...register('ingredients')}
+                            />
                         </div>
-                    )}
-                    <div className="mt-3">
-                        <label className="text-sm">Cari resep (opsional)</label>
-                        <Input
-                            id="query_inp"
-                            placeholder="rendang, sayur bening, tumis kangkung"
-                            {...register('query')}
-                        />
+                        
+                        <div className="space-y-2">
+                            <div className="flex gap-2">
+                                <Input
+                                    placeholder="Tambah bahan (mis. telur)"
+                                    value={newItem}
+                                    onChange={(e) => setNewItem(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            addPantry();
+                                        }
+                                    }}
+                                    className="flex-1"
+                                />
+                                <Button type="button" onClick={addPantry} size="sm">
+                                    Tambah
+                                </Button>
+                            </div>
+                            
+                            {pantry?.length > 0 && (
+                                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                                    {pantry.map((p, i) => (
+                                        <span
+                                            key={i}
+                                            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 dark:bg-white/10 text-sm whitespace-nowrap"
+                                        >
+                                            <span className="truncate max-w-[120px]">{p.name}</span>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    removePantry(i);
+                                                }}
+                                                className="opacity-70 hover:opacity-100 flex-shrink-0"
+                                            >
+                                                ×
+                                            </button>
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div>
+                            <label className="text-sm font-medium">Cari resep (opsional)</label>
+                            <Input
+                                id="query_inp"
+                                placeholder="rendang, sayur bening, tumis kangkung"
+                                className="mt-1"
+                                {...register('query')}
+                            />
+                        </div>
                     </div>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                        <Button
-                            type="submit"
-                            loading={loading || isStreaming}
-                            disabled={isStreaming || loading}
-                        >
-                            Kirim
-                        </Button>
-                        {isStreaming && (
+                    
+                    <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                        <div className="flex flex-wrap gap-2">
                             <Button
-                                variant="outline"
+                                type="submit"
+                                loading={loading || isStreaming}
+                                disabled={isStreaming || loading}
+                                className="flex-1 sm:flex-none"
+                            >
+                                Kirim
+                            </Button>
+                            {isStreaming && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    type="button"
+                                    onClick={stop}
+                                >
+                                    Stop
+                                </Button>
+                            )}
+                            <Button
+                                variant="ghost"
                                 size="sm"
                                 type="button"
-                                onClick={stop}
+                                onClick={onReset}
                             >
-                                Stop
+                                Reset
                             </Button>
-                        )}
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            type="button"
-                            onClick={onReset}
-                        >
-                            Reset
-                        </Button>
+                        </div>
                     </div>
                 </Card>
-            <Card className="h-[60vh] max-h-[60vh] overflow-y-auto col-span-4 md:col-span-3">
-                    <div className="flex items-center justify-between mb-2">
-                        <h2 className="font-semibold">Hasil</h2>
-                        {(isStreaming || loading) && (
-                            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                                <div className="animate-spin w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full"></div>
-                                <span>{isStreaming ? 'Generating resep...' : 'Loading...'}</span>
-                            </div>
-                        )}
+                <Card className="lg:col-span-3 col-span-1 flex flex-col min-h-0">
+                    <div className="flex-none">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="font-semibold text-lg">Hasil</h2>
+                            {(isStreaming || loading) && (
+                                <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                                    <div className="animate-spin w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full"></div>
+                                    <span className="hidden sm:inline">
+                                        {isStreaming ? 'Generating resep...' : 'Loading...'}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
                     </div>
+                    
                     <div
                         ref={respRef}
-                        className="max-h-[60vh] overflow-auto pr-1"
+                        className="flex-1 min-h-0 overflow-auto pr-2"
                     >
                         {segments.length > 1 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                                 {segments.map((seg, idx) => (
                                     <div
                                         key={idx}
-                                        className="rounded-lg border border-slate-200/60 dark:border-white/10 p-3 hover:shadow-sm transition-shadow"
+                                        className="rounded-lg border border-slate-200/60 dark:border-white/10 p-4 hover:shadow-md transition-all duration-200 flex flex-col"
                                     >
-                                        <div className="flex items-center justify-between gap-3 mb-2">
+                                        <div className="flex items-start justify-between gap-3 mb-3">
                                             <h3
-                                                className="font-semibold text-base truncate"
+                                                className="font-semibold text-base line-clamp-2 flex-1"
                                                 title={seg.title}
                                             >
                                                 {seg.title}
@@ -259,6 +284,7 @@ export default function Recipes() {
                                                 <Button
                                                     type="button"
                                                     size="sm"
+                                                    className="flex-shrink-0"
                                                     onClick={() => {
                                                     try {
                                                         const saved =
@@ -330,7 +356,7 @@ export default function Recipes() {
                                             )}
                                         </div>
                                         <div
-                                            className="prose prose-slate dark:prose-invert max-w-none text-sm max-h-40 overflow-auto"
+                                            className="prose prose-slate dark:prose-invert max-w-none text-sm flex-1 min-h-0 overflow-auto"
                                             dangerouslySetInnerHTML={{
                                                 __html: seg.html,
                                             }}
@@ -339,13 +365,22 @@ export default function Recipes() {
                                         {!isStreaming && !loading && (() => {
                                             const previewChecklist = buildChecklistFromText(seg.text);
                                             return previewChecklist.totalItems > 0 ? (
-                                                <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
-                                                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                                                        <span>📝 {previewChecklist.bahan.length} bahan</span>
+                                                <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 flex-shrink-0">
+                                                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                                        <span className="flex items-center gap-1">
+                                                            <span>📝</span>
+                                                            <span>{previewChecklist.bahan.length} bahan</span>
+                                                        </span>
                                                         <span>•</span>
-                                                        <span>👩‍🍳 {previewChecklist.langkah.length} langkah</span>
+                                                        <span className="flex items-center gap-1">
+                                                            <span>👩‍🍳</span>
+                                                            <span>{previewChecklist.langkah.length} langkah</span>
+                                                        </span>
                                                         <span>•</span>
-                                                        <span>✅ {previewChecklist.totalItems} total item</span>
+                                                        <span className="flex items-center gap-1">
+                                                            <span>✅</span>
+                                                            <span>{previewChecklist.totalItems} total item</span>
+                                                        </span>
                                                     </div>
                                                 </div>
                                             ) : null;
@@ -355,26 +390,29 @@ export default function Recipes() {
                             </div>
                         ) : (
                             <div
-                                className="prose prose-slate dark:prose-invert max-w-none text-sm p-2"
+                                className="prose prose-slate dark:prose-invert max-w-none text-sm p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg min-h-[200px] overflow-auto"
                                 dangerouslySetInnerHTML={{
                                     __html: formatListHtml(resp),
                                 }}
                             />
                         )}
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2 absolute bottom-3 left-3">
-                        {(isStreaming || loading) && resp ? (
-                            <div className="text-sm text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-md">
-                                ⏳ Tunggu AI selesai untuk menyimpan resep
-                            </div>
-                        ) : (
-                            <>
-                        {/* Only show save buttons if we have valid segments or meaningful content */}
-                        {!isStreaming && !loading && segments.length > 1 ? (
-                            <Button
-                                type="button"
-                                variant="primary"
-                                size="sm"
+                    
+                    <div className="flex-shrink-0 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                        <div className="flex flex-wrap gap-2">
+                            {(isStreaming || loading) && resp ? (
+                                <div className="text-sm text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-md">
+                                    ⏳ Tunggu AI selesai untuk menyimpan resep
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Only show save buttons if we have valid segments or meaningful content */}
+                                    {!isStreaming && !loading && segments.length > 1 ? (
+                                        <Button
+                                            type="button"
+                                            variant="primary"
+                                            size="sm"
+                                            className="flex-1 sm:flex-none"
                                 onClick={() => {
                                     try {
                                         const saved = JSON.parse(
@@ -445,15 +483,16 @@ export default function Recipes() {
                             </Button>
                         ) : (
                             // Only show single save button if we have exactly one segment OR meaningful content without segments
-                            !isStreaming && !loading && 
+                            (!isStreaming && !loading && 
                             (
                                 (segments.length === 1) || 
                                 (segments.length === 0 && resp?.trim() && !isResponseMeaningless(resp))
-                            ) && (
+                            )) ? (
                                 <Button
                                     type="button"
                                     variant="primary"
                                     size="sm"
+                                    className="flex-1 sm:flex-none"
                                     onClick={() => {
                                         try {
                                             if (!resp?.trim()) return;
@@ -522,16 +561,16 @@ export default function Recipes() {
                                 >
                                     Simpan Resep
                                 </Button>
-                            )
+                            ) : null
                         )}
                         </>
                         )}
+                        </div>
                     </div>
                 </Card>
             </form>
-            </div>
             <ToastContainer toasts={toasts} />
-        </>
+        </div>
     );
 }
 
