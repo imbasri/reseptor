@@ -6,7 +6,7 @@
 🍳 **Kelola pantry, temukan resep sehat, simpan resep favorit, dan kelola todolist memasak.** Semua lokal via Ollama + Granite — cepat, privat, tanpa login.
 
 ## 📄 Dokumentasi PDF
-- **Panduan Lengkap**: [Reseptor Documentation (PDF)](./Reseptor_Asisten_Masak_Keluarga.pdf)
+- **Panduan Lengkap**: [Reseptor Documentation (PDF)](./Reseptor_Asisten_Masak_Keluarga_.pdf)
 
 
 ## 🖼️ Preview Gambar & Video
