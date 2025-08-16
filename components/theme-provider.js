@@ -1,8 +1,17 @@
 'use client'
 import { ThemeProvider as NextThemesProvider } from 'next-themes'
 import { Sun, Moon } from 'lucide-react'
+import { useEffect } from 'react'
 
 export function ThemeProvider({ children }){
+  useEffect(() => {
+    // Initialize theme from localStorage
+    const theme = localStorage.getItem('theme')
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark')
+    }
+  }, [])
+
   return (
     <NextThemesProvider attribute="class" defaultTheme="system" enableSystem>{children}</NextThemesProvider>
   )
@@ -24,9 +33,4 @@ export function ThemeToggle(){
       <Moon className="w-4 h-4 block dark:hidden"/>
     </button>
   )
-}
-
-if (typeof window !== 'undefined'){
-  const t = localStorage.getItem('theme')
-  if(t==='dark') document.documentElement.classList.add('dark')
 }

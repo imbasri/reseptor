@@ -1,4 +1,5 @@
 import clsx from 'clsx'
+import { forwardRef } from 'react'
 
 const buttonVariants = ({ variant = 'default', size = 'md' } = {}) => {
   const base = 'inline-flex items-center justify-center rounded-lg font-medium transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-[#0e1428] disabled:opacity-50 disabled:pointer-events-none active:scale-[.98] will-change-transform'
@@ -16,15 +17,17 @@ const buttonVariants = ({ variant = 'default', size = 'md' } = {}) => {
   return clsx(base, variants[variant], sizes[size], 'hover:translate-y-[0.5px]')
 }
 
-export function Button({ children, className, variant='default', size='md', loading=false, disabled, ...props }){
+export const Button = forwardRef(function Button({ children, className, variant='default', size='md', loading=false, disabled, ...props }, ref){
   return (
-    <button className={clsx(buttonVariants({ variant, size }), className)} disabled={disabled || loading} {...props}>
+    <button ref={ref} className={clsx(buttonVariants({ variant, size }), className)} disabled={disabled || loading} {...props}>
       {loading && <Spinner className={clsx('mr-2', size==='sm'?'w-3.5 h-3.5':'w-4 h-4')} />}
       {children}
     </button>
-  )}
+  )
+})
 
 Button.variants = buttonVariants
+export { buttonVariants }
 
 function Spinner({ className }){
   return (

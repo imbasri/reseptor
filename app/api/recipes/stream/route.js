@@ -1,11 +1,11 @@
-import { createLineJsonStream, getOllamaHost, getOllamaModel } from '../../../../lib/ollama'
+import { createLineJsonStream, getOllamaHost, getSelectedModel } from '../../../../lib/ollama'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req){
   try{
   const { ingredients='', diet='', allergies='', time='30', servings='2', query='' } = await req.json()
   const ollama = getOllamaHost()
-  const model = getOllamaModel()
+  const model = await getSelectedModel(req)
   const q = (query||'').trim()
   const prompt = `Anda adalah asisten resep.
 Bahan pantry (prioritas, jangan menambahkan bahan di luar ini kecuali bumbu dasar umum): ${ingredients}.

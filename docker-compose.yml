@@ -1,0 +1,74 @@
+# Docker Compose for Reseptor + Ollama
+
+services:
+  # Ollama Service
+  ollama:
+    image: ollama/ollama:latest
+    container_name: reseptor-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    # GPU support (uncomment if you have NVIDIA GPU)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # Model Initializer - pulls default model
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: reseptor-ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    command: >
+      bash -c "
+        echo 'Waiting for Ollama to be ready...' &&
+        sleep 10 &&
+        echo 'Pulling granite3.3:8b model...' &&
+        ollama pull granite3.3:8b &&
+        echo 'Model granite3.3:8b successfully pulled!' &&
+        echo 'Available models:' &&
+        ollama list
+      "
+    restart: "no"
+
+  # Reseptor Web App
+  reseptor:
+    build: .
+    container_name: reseptor-app
+    ports:
+      - "3000:3000"
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - NODE_ENV=production
+    depends_on:
+      ollama-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/models"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  ollama_data:
+    driver: local

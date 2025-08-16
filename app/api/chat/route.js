@@ -1,3 +1,5 @@
+import { getOllamaHost, getSelectedModel } from '../../../lib/ollama'
+
 export const dynamic = 'force-dynamic'
 
 export async function POST(req){
@@ -5,8 +7,8 @@ export async function POST(req){
   const { messages=[] } = await req.json()
   const sys = { role: 'system', content: 'Format jawaban secara rapi. Jika memberikan langkah atau daftar, gunakan list bernomor (1., 2., 3.) dan poin singkat yang mudah dibaca. Gunakan subjudul pendek jika perlu.' }
   const payload = Array.isArray(messages) && messages[0]?.role === 'system' ? messages : [sys, ...messages]
-  const ollama = process.env.OLLAMA_HOST || 'http://localhost:11434'
-  const model = process.env.OLLAMA_MODEL || 'granite3.2-vision:2b'
+  const ollama = getOllamaHost()
+  const model = await getSelectedModel(req)
     const r = await fetch(`${ollama}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type':'application/json' },

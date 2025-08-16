@@ -1,4 +1,4 @@
-import { createLineJsonStream, getOllamaHost, getOllamaModel } from '../../../../lib/ollama'
+import { createLineJsonStream, getOllamaHost, getSelectedModel } from '../../../../lib/ollama'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req){
@@ -7,7 +7,7 @@ export async function POST(req){
   const sys = { role: 'system', content: 'Format jawaban secara rapi. Jika memberikan langkah atau daftar, gunakan list bernomor (1., 2., 3.) dan poin singkat yang mudah dibaca. Gunakan subjudul pendek jika perlu.' }
   const payload = Array.isArray(messages) && messages[0]?.role === 'system' ? messages : [sys, ...messages]
   const ollama = getOllamaHost()
-  const model = getOllamaModel()
+  const model = await getSelectedModel(req)
     const upstream = await fetch(`${ollama}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type':'application/json' },

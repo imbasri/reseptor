@@ -1,11 +1,11 @@
-import { extractFirstJson, getOllamaHost, getOllamaModel } from '../../../lib/ollama'
+import { extractFirstJson, getOllamaHost, getSelectedModel } from '../../../lib/ollama'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req){
   try{
     const { budget='300000', goal='' } = await req.json()
   const ollama = getOllamaHost()
-  const model = getOllamaModel()
+  const model = await getSelectedModel(req)
     const prompt = `Buat planner makan 7 hari (sarapan, makan siang, makan malam) untuk keluarga 3-4 orang. Tujuan diet: ${goal}. Budget total: Rp ${budget} per minggu.
 Kembalikan HANYA JSON valid di dalam satu blok code-fence json:
 \n\n\u0060\u0060\u0060json

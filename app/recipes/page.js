@@ -6,6 +6,7 @@ import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
 import { Card } from '../../components/ui/card';
 import { useToast, ToastContainer } from '../../components/ui/toast';
+import ModelSettings from '../../components/model-settings';
 
 export default function Recipes() {
     const { register, handleSubmit, reset, setValue } = useForm();
@@ -18,6 +19,7 @@ export default function Recipes() {
     const respRef = useRef(null); // ref for scrollable result container
     const segments = useMemo(() => segmentRecipesFromText(resp), [resp]);
     const { toast, toasts } = useToast();
+    const [selectedModel, setSelectedModel] = useState('');
 
     // Load pantry from localStorage and normalize
     useEffect(() => {
@@ -61,7 +63,10 @@ export default function Recipes() {
         try {
             const res = await fetch('/api/recipes/stream', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'x-preferred-model': selectedModel || ''
+                },
                 body: JSON.stringify(values),
                 signal: controller.signal,
             });
@@ -136,6 +141,7 @@ export default function Recipes() {
                 <h1 className="text-2xl font-bold">
                     Resep Dinamis dengan Granite AI
                 </h1>
+                <ModelSettings onModelChange={setSelectedModel} />
             <form
                 onSubmit={handleSubmit(onSubmit)}
                 className="grid md:grid-cols-2 gap-4"
