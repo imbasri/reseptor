@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 
-export function Button({ children, className, variant='default', size='md', loading=false, disabled, ...props }){
+const buttonVariants = ({ variant = 'default', size = 'md' } = {}) => {
   const base = 'inline-flex items-center justify-center rounded-lg font-medium transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-[#0e1428] disabled:opacity-50 disabled:pointer-events-none active:scale-[.98] will-change-transform'
   const variants = {
     default: 'bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200',
@@ -13,12 +13,18 @@ export function Button({ children, className, variant='default', size='md', load
     md: 'px-4 py-2 text-sm',
     lg: 'px-5 py-2.5 text-base'
   }
+  return clsx(base, variants[variant], sizes[size], 'hover:translate-y-[0.5px]')
+}
+
+export function Button({ children, className, variant='default', size='md', loading=false, disabled, ...props }){
   return (
-    <button className={clsx(base, variants[variant], sizes[size], 'hover:translate-y-[0.5px]', className)} disabled={disabled || loading} {...props}>
+    <button className={clsx(buttonVariants({ variant, size }), className)} disabled={disabled || loading} {...props}>
       {loading && <Spinner className={clsx('mr-2', size==='sm'?'w-3.5 h-3.5':'w-4 h-4')} />}
       {children}
     </button>
   )}
+
+Button.variants = buttonVariants
 
 function Spinner({ className }){
   return (

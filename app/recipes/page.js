@@ -5,6 +5,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
 import { Card } from '../../components/ui/card';
+import { useToast, ToastContainer } from '../../components/ui/toast';
 
 export default function Recipes() {
     const { register, handleSubmit, reset, setValue } = useForm();
@@ -16,6 +17,7 @@ export default function Recipes() {
     const [newItem, setNewItem] = useState('');
     const respRef = useRef(null); // ref for scrollable result container
     const segments = useMemo(() => segmentRecipesFromText(resp), [resp]);
+    const { toast, toasts } = useToast();
 
     // Load pantry from localStorage and normalize
     useEffect(() => {
@@ -129,10 +131,11 @@ export default function Recipes() {
     // removed planner integration
 
     return (
-        <div className="space-y-4">
-            <h1 className="text-2xl font-bold">
-                Resep Dinamis dengan Granite AI
-            </h1>
+        <>
+            <div className="space-y-4">
+                <h1 className="text-2xl font-bold">
+                    Resep Dinamis dengan Granite AI
+                </h1>
             <form
                 onSubmit={handleSubmit(onSubmit)}
                 className="grid md:grid-cols-2 gap-4"
@@ -355,9 +358,10 @@ export default function Recipes() {
                                         window.dispatchEvent(
                                             new Event('savedRecipesUpdated')
                                         );
-                                        alert(
-                                            'Semua resep disimpan. Buka tab Todolist untuk checklist ringkasnya.'
-                                        );
+                                        toast({
+                                            title: 'Resep Disimpan',
+                                            description: 'Buka tab Todolist untuk checklist ringkasnya.'
+                                        });
                                     } catch {}
                                 }}
                             >
@@ -408,9 +412,10 @@ export default function Recipes() {
                                             window.dispatchEvent(
                                                 new Event('savedRecipesUpdated')
                                             );
-                                            alert(
-                                                'Resep disimpan! Buka tab Todolist untuk checklist ringkasnya.'
-                                            );
+                                            toast({
+                                                title: 'Resep Disimpan',
+                                                description: 'Buka tab Todolist untuk checklist ringkasnya.'
+                                            });
                                         } catch {}
                                     }}
                                 >
@@ -421,7 +426,9 @@ export default function Recipes() {
                     </div>
                 </Card>
             </form>
-        </div>
+            </div>
+            <ToastContainer toasts={toasts} />
+        </>
     );
 }
 

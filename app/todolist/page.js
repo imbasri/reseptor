@@ -3,6 +3,17 @@ import { useEffect, useState } from 'react'
 import { Card } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '../../components/ui/alert-dialog'
 
 export default function Todolist(){
     const [saved, setSaved] = useState([])
@@ -13,6 +24,8 @@ export default function Todolist(){
     const [editState, setEditState] = useState({})
     // id -> string (input tambah langkah)
     const [addState, setAddState] = useState({})
+    const [deleteDialog, setDeleteDialog] = useState({ open: false, type: '', id: null, idx: null })
+    const [replaceDialog, setReplaceDialog] = useState({ open: false, id: null, content: '' })
 
     // load on mount and when storage changes in other tabs
     useEffect(()=>{
@@ -53,8 +66,13 @@ export default function Todolist(){
 
     const summarize = async (id, content) => {
         if((lists[id]?.langkah?.length||0)){
-            const ok = window.confirm('Checklist sudah ada. Ganti dengan versi ringkas baru?'); if(!ok) return
+            setReplaceDialog({ open: true, id, content })
+            return
         }
+        await doSummarize(id, content)
+    }
+
+    const doSummarize = async (id, content) => {
         setLoadingId(id)
         try{
             const prompt = `Ringkas resep berikut menjadi checklist ringkas (5-8 langkah) dengan kalimat singkat. Format: satu item per baris memakai dash '-'.\n\n${content}`
@@ -95,12 +113,16 @@ export default function Todolist(){
     }
 
     const removeSaved = (id) => {
-        if(!window.confirm('Yakin menghapus resep tersimpan ini? Checklist juga akan dihapus.')) return
+        setDeleteDialog({ open: true, type: 'recipe', id, idx: null })
+    }
+
+    const doRemoveSaved = (id) => {
         const upd = saved.filter(x=>x.id!==id)
         setSaved(upd)
         localStorage.setItem('savedRecipes', JSON.stringify(upd))
         try{ window.dispatchEvent(new Event('savedRecipesUpdated')) }catch{}
         setLists(prev=>{ const cp = {...prev}; delete cp[id]; return cp })
+        setDeleteDialog({ open: false, type: '', id: null, idx: null })
     }
 
     const startEdit = (id, idx, current) => setEditState(prev=>({ ...prev, [id]: { index: idx, text: current } }))
@@ -130,7 +152,10 @@ export default function Todolist(){
     }
 
     const removeItem = (id, idx) => {
-        if(!window.confirm('Hapus item checklist ini?')) return
+        setDeleteDialog({ open: true, type: 'item', id, idx })
+    }
+
+    const doRemoveItem = (id, idx) => {
         setLists(prev=>{
             const cur = prev[id] || { langkah:[] }
             const arr = (cur.langkah||[]).slice(); arr.splice(idx,1)
@@ -138,6 +163,7 @@ export default function Todolist(){
             persistChecklist(id, nextChecklist)
             return { ...prev, [id]: nextChecklist }
         })
+        setDeleteDialog({ open: false, type: '', id: null, idx: null })
     }
 
     return (
@@ -172,10 +198,10 @@ export default function Todolist(){
                                             <ul className="pl-0">
                                                 {lists[item.id].langkah.map((li, idx)=> (
                                                     <li key={idx} className="list-none flex items-center justify-between gap-2 py-1">
-                                                        <div className="flex items-center gap-2 min-w-0">
+                                                        <div className="flex items-center gap-2 min-w-0 w-full">
                                                             <input type="checkbox" checked={li.done} onChange={()=>toggle(item.id, idx)} />
                                                             {editState[item.id]?.index===idx ? (
-                                                                <Input value={editState[item.id]?.text||''} onChange={e=> setEditState(prev=>({ ...prev, [item.id]: { index: idx, text: e.target.value } }))} className="h-8" />
+                                                                <Input value={editState[item.id]?.text||''} onChange={e=> setEditState(prev=>({ ...prev, [item.id]: { index: idx, text: e.target.value } }))} className="h-8 w-full" />
                                                             ) : (
                                                                 <span className={li.done? 'line-through opacity-70 truncate':''}>{li.text}</span>
                                                             )}
@@ -208,6 +234,55 @@ export default function Todolist(){
                     </Card>
                 ))}
             </div>
+
+            {/* Delete Dialog */}
+            <AlertDialog open={deleteDialog.open} onOpenChange={(open) => !open && setDeleteDialog({ open: false, type: '', id: null, idx: null })}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {deleteDialog.type === 'recipe' ? 'Hapus Resep' : 'Hapus Item Checklist'}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {deleteDialog.type === 'recipe' 
+                                ? 'Yakin menghapus resep tersimpan ini? Checklist juga akan dihapus.' 
+                                : 'Yakin menghapus item checklist ini?'}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Batal</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => {
+                            if (deleteDialog.type === 'recipe') {
+                                doRemoveSaved(deleteDialog.id)
+                            } else {
+                                doRemoveItem(deleteDialog.id, deleteDialog.idx)
+                            }
+                        }}>
+                            Hapus
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Replace Checklist Dialog */}
+            <AlertDialog open={replaceDialog.open} onOpenChange={(open) => !open && setReplaceDialog({ open: false, id: null, content: '' })}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Ganti Checklist</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Checklist sudah ada. Ganti dengan versi ringkas baru?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Batal</AlertDialogCancel>
+                        <AlertDialogAction onClick={async () => {
+                            setReplaceDialog({ open: false, id: null, content: '' })
+                            await doSummarize(replaceDialog.id, replaceDialog.content)
+                        }}>
+                            Ganti
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }
