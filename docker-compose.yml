@@ -11,50 +11,35 @@ services:
       - ollama_data:/root/.ollama
     environment:
       - OLLAMA_HOST=0.0.0.0
-    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && (ollama list | grep -q 'granite3.3:8b' || ollama run granite3.3:8b) && tail -f /dev/null"]
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-    # GPU support (uncomment if you have NVIDIA GPU)
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
 
   # Model Initializer - pulls default model
   ollama-init:
     image: ollama/ollama:latest
     container_name: reseptor-ollama-init
     depends_on:
-      ollama:
-        condition: service_healthy
+      - ollama
     volumes:
       - ollama_data:/root/.ollama
     environment:
       - OLLAMA_HOST=http://ollama:11434
-    command: >
-      bash -c "
-        echo '🔧 Waiting for Ollama to be ready...' &&
-        sleep 15 &&
-        echo '📥 Checking if granite3.3:8b already exists...' &&
+    entrypoint: ["/bin/bash"]
+    command: 
+      - "-c"
+      - |
+        echo 'Waiting for Ollama to be ready...'
+        sleep 15
+        echo 'Checking if granite3.3:8b already exists...'
         if ! ollama list | grep -q 'granite3.3:8b'; then
-          echo '📦 Pulling granite3.3:8b model (this may take 5-15 minutes)...' &&
-          ollama run granite3.3:8b &&
-          echo '✅ Model granite3.3:8b successfully downloaded!'
+          echo 'Pulling granite3.3:8b model (this may take 5-15 minutes)...'
+          ollama pull granite3.3:8b
+          echo 'Model granite3.3:8b successfully downloaded!'
         else
-          echo '✅ Model granite3.3:8b already exists!'
-        fi &&
-        echo '📋 Available models:' &&
-        ollama list &&
-        echo '🎉 Ollama setup complete!'
-      "
+          echo 'Model granite3.3:8b already exists!'
+        fi
+        echo 'Available models:'
+        ollama list
+        echo 'Ollama setup complete!'
     restart: "no"
 
   # Reseptor Web App

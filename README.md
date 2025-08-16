@@ -5,6 +5,19 @@
 
 🍳 **Kelola pantry, temukan resep sehat, simpan resep favorit, dan kelola todolist memasak.** Semua lokal via Ollama + Granite — cepat, privat, tanpa login.
 
+## 📄 Dokumentasi PDF
+- **Panduan Lengkap**: [Reseptor Documentation (PDF)](./Reseptor_Asisten_Masak_Keluarga.pdf)
+
+
+## 🖼️ Preview Gambar & Video
+
+### 📷 Screenshot Aplikasi
+![Reseptor Homepage](./homepage.png)
+*Contoh tampilan homepage aplikasi Reseptor.*
+
+### 🎥 Video Demo
+[![Reseptor Demo](https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg)](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
+*Klik gambar di atas untuk melihat demo aplikasi Reseptor.*
 
 ## ✨ Fitur Utama
 
