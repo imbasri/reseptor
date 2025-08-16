@@ -16,7 +16,9 @@
 *Contoh tampilan homepage aplikasi Reseptor.*
 
 ### 🎥 Video Demo
+
 https://github.com/user-attachments/assets/69fc6702-fdb8-4de1-bae7-3564041fc4de
+
 *Klik gambar di atas untuk melihat demo aplikasi Reseptor.*
 
 ## ✨ Fitur Utama
