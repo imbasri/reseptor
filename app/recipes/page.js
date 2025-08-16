@@ -719,15 +719,31 @@ function isResponseMeaningless(text = '') {
 
 function formatListHtml(text = '') {
     try {
-        const lines = text.split(/\r?\n/);
+        // Pre-process text to handle markdown-style formatting like ChatGPT
+        let processedText = text
+            // Convert **bold** to HTML bold tags
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            // Convert *italic* to HTML italic tags  
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            // Remove excessive dashes and separators
+            .replace(/^[-=_*#+\s]{3,}$/gm, '')
+            // Remove leading numbers from recipe titles and steps
+            .replace(/^(\s*)\d+\.?\s*([A-Z][^.]*(?:\.|$))/gm, '$1$2')
+            // Clean up extra whitespace
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+            
+        const lines = processedText.split(/\r?\n/);
         const chunks = [];
         let ol = [];
         let ul = [];
+        let inStepsSection = false;
+        
         const flush = () => {
             if (ol.length) {
                 chunks.push(
                     '<ol class="pl-5 list-decimal space-y-1">' +
-                        ol.map((li) => `<li>${escapeHtml(li)}</li>`).join('') +
+                        ol.map((li) => `<li>${formatInlineContent(li)}</li>`).join('') +
                         '</ol>'
                 );
                 ol = [];
@@ -735,67 +751,119 @@ function formatListHtml(text = '') {
             if (ul.length) {
                 chunks.push(
                     '<ul class="pl-5 list-disc space-y-1">' +
-                        ul.map((li) => `<li>${escapeHtml(li)}</li>`).join('') +
+                        ul.map((li) => `<li>${formatInlineContent(li)}</li>`).join('') +
                         '</ul>'
                 );
                 ul = [];
             }
         };
+
+        // Helper function to format inline content (preserving HTML tags)
+        function formatInlineContent(content) {
+            // Don't escape content that already contains HTML tags
+            if (/<\/?[a-z][\s\S]*>/i.test(content)) {
+                return content;
+            }
+            return escapeHtml(content);
+        }
+        
         for (const raw of lines) {
             const line = raw.trim();
             if (!line) {
                 flush();
+                inStepsSection = false;
                 continue;
             }
+            
+            // Skip lines that are just numbers or separators
+            if (/^\d+\s*$/.test(line) || /^[-=_*#+\s]{2,}$/.test(line)) {
+                continue;
+            }
+            
             // Headings like Bahan/Langkah/Estimasi/Tips (optional colon)
             if (
-                /^(Bahan|Langkah(?:\s+Masak)?|Estimasi(?:\s+Kalori(?:\s+per\s+Porsi)?)?|Tips(?:\s+Singkat)?)\s*:?$/i.test(
+                /^(Bahan|Langkah(?:\s+Masak)?|Estimasi(?:\s+Kalori(?:\s+per\s+Porsi)?)?|Tips(?:\s+Singkat)?|Cara(?:\s+Membuat)?)\s*:?$/i.test(
                     line
                 )
             ) {
                 flush();
+                // Check if we're entering a steps section
+                if (/^(Langkah|Steps|Cara)/i.test(line)) {
+                    inStepsSection = true;
+                } else {
+                    inStepsSection = false;
+                }
                 chunks.push(
-                    `<h4 class="mt-2 font-semibold">${escapeHtml(
+                    `<h4 class="mt-4 mb-2 font-semibold text-slate-800 dark:text-slate-200">${formatInlineContent(
                         line.replace(/\s*:$/, '')
                     )}</h4>`
                 );
                 continue;
             }
-            // Ordered vs unordered
-            if (/^\d+\./.test(line)) {
+            
+            // Check if this is a step using improved detection
+            const isStepLine = 
+                /^\s*\d+\.?\s/.test(line) || // Has number prefix
+                inStepsSection || // We're in a steps section
+                /^(kemudian|lalu|selanjutnya|setelah|pertama|kedua|ketiga|keempat|kelima|keenam|ketujuh|kedelapan|kesembilan|kesepuluh|terakhir|akhirnya)/i.test(line); // Step keywords
+            
+            // Numbered list detection with better step recognition
+            if (isStepLine && !/^[-*]\s+/.test(line)) {
                 if (ul.length) {
                     chunks.push(
                         '<ul class="pl-5 list-disc space-y-1">' +
-                            ul
-                                .map((li) => `<li>${escapeHtml(li)}</li>`)
-                                .join('') +
+                            ul.map((li) => `<li>${formatInlineContent(li)}</li>`).join('') +
                             '</ul>'
                     );
                     ul = [];
                 }
-                ol.push(line.replace(/^\d+\.\s*/, '').trim());
+                
+                // Clean the content by removing any existing numbers
+                let content = line.replace(/^\s*\d+\.?\s*/, '').trim();
+                if (!content) {
+                    content = line.trim();
+                }
+                
+                ol.push(content);
                 continue;
             }
+            
+            // Bullet lists
             if (/^[-*]\s+/.test(line)) {
                 if (ol.length) {
                     chunks.push(
                         '<ol class="pl-5 list-decimal space-y-1">' +
-                            ol
-                                .map((li) => `<li>${escapeHtml(li)}</li>`)
-                                .join('') +
+                            ol.map((li) => `<li>${formatInlineContent(li)}</li>`).join('') +
                             '</ol>'
                     );
                     ol = [];
                 }
+                inStepsSection = false;
                 ul.push(line.replace(/^[-*]\s+/, '').trim());
                 continue;
             }
+            
+            // If we're in steps section and this looks like a step, add it as ordered list item
+            if (inStepsSection && line.length > 5 && !line.includes(':')) {
+                if (ul.length) {
+                    chunks.push(
+                        '<ul class="pl-5 list-disc space-y-1">' +
+                            ul.map((li) => `<li>${formatInlineContent(li)}</li>`).join('') +
+                            '</ul>'
+                    );
+                    ul = [];
+                }
+                ol.push(line);
+                continue;
+            }
+            
             // default paragraph
             flush();
-            chunks.push('<p>' + escapeHtml(line) + '</p>');
+            inStepsSection = false;
+            chunks.push(`<p class="mb-2 text-slate-700 dark:text-slate-300">${formatInlineContent(line)}</p>`);
         }
         flush();
-        return chunks.join('') || escapeHtml(text);
+        return chunks.join('') || formatInlineContent(text);
     } catch {
         return escapeHtml(text);
     }
@@ -855,25 +923,25 @@ function extractTitleFromText(text = '') {
                 .replace(/\s*:$/, '') // Remove trailing colon
                 .replace(/^\d+[\.\s]+/, '') // Remove leading numbers with dots or spaces
                 .replace(/^\d+\s*-\s*/, '') // Remove "1 - " pattern
+                .replace(/\s*\d+\s*$/, '') // Remove trailing numbers
+                .replace(/\d+/g, '') // Remove ALL numbers from title
+                .replace(/\*\*/g, '') // Remove all ** bold markers
+                .replace(/\s+/g, ' ') // Normalize spaces
                 .trim();
                 
-            // Enhanced title cleaning - preserve Indonesian dish names
-            if (cleaned) {
-                // Remove more patterns that aren't dish names
-                cleaned = cleaned
-                    .replace(/^(Menu|Masakan|Hidangan|Makanan)\s*[:\-]?\s*/i, '')
-                    .replace(/^(Untuk|Sajian)\s*\d+\s*(porsi|orang)?\s*[:\-]?\s*/i, '')
-                    .replace(/^(Waktu|Durasi)\s*[:\-]?\s*\d+.*[:\-]?\s*/i, '')
-                    .replace(/^(Kalori|Protein|Lemak|Karbohidrat).*[:\-]?\s*/i, '') // Remove nutrition info
-                    .replace(/^\d+\s*(kalori|kcal|cal)\b.*$/i, '') // Remove calorie statements
-                    .trim();
-                
-                // Additional check: skip if still starts with number after cleaning
-                if (/^\d/.test(cleaned)) {
-                    continue;
-                }
-                
-                // Skip if it's nutrition/calorie related
+                // Enhanced title cleaning - preserve Indonesian dish names
+                if (cleaned) {
+                    // Remove more patterns that aren't dish names
+                    cleaned = cleaned
+                        .replace(/^(Menu|Masakan|Hidangan|Makanan)\s*[:\-]?\s*/i, '')
+                        .replace(/^(Untuk|Sajian)\s*\d*\s*(porsi|orang)?\s*[:\-]?\s*/i, '')
+                        .replace(/^(Waktu|Durasi)\s*[:\-]?\s*\d*.*[:\-]?\s*/i, '')
+                        .replace(/^(Kalori|Protein|Lemak|Karbohidrat).*[:\-]?\s*/i, '') // Remove nutrition info
+                        .replace(/^\d*\s*(kalori|kcal|cal)\b.*$/i, '') // Remove calorie statements
+                        .replace(/\d+/g, '') // Remove all remaining numbers
+                        .replace(/\*\*/g, '') // Remove all ** bold markers
+                        .replace(/\s+/g, ' ') // Normalize spaces again
+                        .trim();                // Skip if it's nutrition/calorie related
                 if (/^(kalori|kcal|cal|protein|lemak|karbohidrat|gula|natrium)\b/i.test(cleaned)) {
                     continue;
                 }

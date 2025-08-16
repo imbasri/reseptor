@@ -393,21 +393,50 @@ function formatListHtml(text=''){
   try{
     if (!text.trim()) return ''
     
-    const lines = text.split(/\r?\n/)
+    // Pre-process text to handle markdown-style formatting like ChatGPT
+    let processedText = text
+      // Convert **bold** to HTML bold tags
+      .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-slate-800 dark:text-slate-100">$1</strong>')
+      // Convert *italic* to HTML italic tags  
+      .replace(/\*(.*?)\*/g, '<em class="italic text-slate-700 dark:text-slate-300">$1</em>')
+      // Remove excessive dashes and separators
+      .replace(/^[-=_*#+\s]{3,}$/gm, '')
+      // Remove leading numbers from recipe titles and steps
+      .replace(/^(\s*)\d+\.?\s*([A-Z][^.]*(?:\.|$))/gm, '$1$2')
+      // Clean up extra whitespace
+      .replace(/\n{3,}/g, '\n\n');
+    
+    const lines = processedText.split(/\r?\n/)
     const chunks = []
     let ol = []
     let ul = []
+    let inStepsSection = false
+    
+    // Helper function to format inline content (preserving HTML tags)
+    function formatInlineContent(content) {
+      // Don't escape content that already contains HTML tags
+      if (/<\/?[a-z][\s\S]*>/i.test(content)) {
+        return content;
+      }
+      return escapeHtml(content);
+    }
     
     const flushOl = () => { 
       if(ol.length){ 
-        chunks.push('<ol class="pl-5 list-decimal space-y-1 my-2">'+ ol.map(li=>`<li class="text-slate-700 dark:text-slate-200">${escapeHtml(li)}</li>`).join('') + '</ol>') 
+        // Create properly numbered list starting from 1
+        let numberedList = '<ol class="pl-5 list-decimal space-y-1 my-2">'
+        ol.forEach((item, index) => {
+          numberedList += `<li class="text-slate-700 dark:text-slate-200">${formatInlineContent(item)}</li>`
+        })
+        numberedList += '</ol>'
+        chunks.push(numberedList)
         ol=[] 
       } 
     }
     
     const flushUl = () => { 
       if(ul.length){ 
-        chunks.push('<ul class="pl-5 list-disc space-y-1 my-2">'+ ul.map(li=>`<li class="text-slate-700 dark:text-slate-200">${escapeHtml(li)}</li>`).join('') + '</ul>') 
+        chunks.push('<ul class="pl-5 list-disc space-y-1 my-2">'+ ul.map(li=>`<li class="text-slate-700 dark:text-slate-200">${formatInlineContent(li)}</li>`).join('') + '</ul>') 
         ul=[] 
       } 
     }
@@ -417,52 +446,107 @@ function formatListHtml(text=''){
       if (!trimmed) {
         flushOl()
         flushUl()
+        inStepsSection = false
         if (chunks.length > 0) chunks.push('<br>')
         continue
       }
       
-      // Numbered lists
+      // Skip lines that are just numbers or separators
+      if (/^\d+\s*$/.test(trimmed) || /^[-=_*#+\s]{2,}$/.test(trimmed)) {
+        continue
+      }
+      
+      // Check if we're entering a steps/langkah section
+      if (/^(langkah|steps|cara|instruksi|petunjuk|method)\s*:?\s*$/i.test(trimmed)) {
+        inStepsSection = true
+        flushOl()
+        flushUl()
+        chunks.push(`<h4 class="font-semibold text-slate-800 dark:text-slate-100 mt-4 mb-2">${formatInlineContent(trimmed)}</h4>`)
+        continue
+      }
+      
+      // Check for other section headers (Bahan, Tips, etc)
+      if (/^(bahan|ingredients|tips|estimasi|kalori|protein|lemak|karbohidrat)\s*:?\s*$/i.test(trimmed)) {
+        flushOl()
+        flushUl()
+        inStepsSection = false
+        chunks.push(`<h4 class="font-semibold text-slate-800 dark:text-slate-100 mt-4 mb-2">${formatInlineContent(trimmed)}</h4>`)
+        continue
+      }
+      
+      // Detect numbered lists - remove existing numbers and create proper list
       const numberedMatch = trimmed.match(/^\s*(\d+)\.\s*(.+)/)
       if(numberedMatch){
         flushUl()
-        ol.push(numberedMatch[2])
+        // Extract content without the number prefix
+        const content = numberedMatch[2].trim()
+        ol.push(content)
         continue
+      }
+      
+      // Detect lines that should be steps even without numbers
+      const stepKeywords = /^(kemudian|lalu|selanjutnya|setelah|pertama|kedua|ketiga|keempat|kelima|keenam|ketujuh|kedelapan|kesembilan|kesepuluh|terakhir|akhirnya)/i
+      if (inStepsSection || stepKeywords.test(trimmed)) {
+        flushUl()
+        // Clean step indicators from the beginning
+        let content = trimmed
+          .replace(/^(kemudian|lalu|selanjutnya|setelah|pertama|kedua|ketiga|keempat|kelima|keenam|ketujuh|kedelapan|kesembilan|kesepuluh|terakhir|akhirnya)[,\s]*/i, '')
+          .trim()
+        
+        if (content.length > 3) {
+          ol.push(content)
+          continue
+        }
       }
       
       // Bullet lists
       const bulletMatch = trimmed.match(/^[-*•]\s+(.+)/)
       if(bulletMatch){
         flushOl()
+        inStepsSection = false
         ul.push(bulletMatch[1])
         continue
       }
       
-      // Headings
+      // Headings with #
       const headingMatch = trimmed.match(/^#+\s*(.+)/)
       if(headingMatch){
         flushOl()
         flushUl()
-        const level = Math.min(headingMatch[0].indexOf(' '), 4)
-        chunks.push(`<h${level + 2} class="font-semibold text-slate-800 dark:text-slate-100 mt-4 mb-2">${escapeHtml(headingMatch[1])}</h${level + 2}>`)
+        inStepsSection = false
+        const hashCount = headingMatch[0].indexOf(' ')
+        const level = Math.min(Math.max(hashCount, 1), 4)
+        chunks.push(`<h${level + 2} class="font-semibold text-slate-800 dark:text-slate-100 mt-4 mb-2">${formatInlineContent(headingMatch[1])}</h${level + 2}>`)
         continue
       }
       
-      // Bold text processing
-      let processedText = trimmed.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-slate-800 dark:text-slate-100">$1</strong>')
+      // If we're in steps section and this looks like a meaningful step, add it as ordered list item
+      if (inStepsSection && trimmed.length > 10 && !trimmed.includes(':') && !/^(bahan|tips|estimasi|kalori)/i.test(trimmed)) {
+        flushUl()
+        ol.push(trimmed)
+        continue
+      }
       
       // Regular paragraphs
       flushOl()
       flushUl()
+      
+      // Reset steps section for certain content
+      if (trimmed.includes(':') || trimmed.length < 10) {
+        inStepsSection = false
+      }
+      
       if(trimmed) {
-        chunks.push(`<p class="text-slate-700 dark:text-slate-200 mb-2">${processedText.includes('<strong') ? processedText : escapeHtml(processedText)}</p>`)
+        chunks.push(`<p class="text-slate-700 dark:text-slate-200 mb-2">${formatInlineContent(trimmed)}</p>`)
       }
     }
     
     flushOl()
     flushUl()
     
-    return chunks.join('') || `<p class="text-slate-700 dark:text-slate-200">${escapeHtml(text)}</p>`
-  }catch{ 
+    return chunks.join('') || `<p class="text-slate-700 dark:text-slate-200">${formatInlineContent(text)}</p>`
+  }catch(error){ 
+    console.error('formatListHtml error:', error)
     return `<p class="text-slate-700 dark:text-slate-200">${escapeHtml(text)}</p>`
   }
 }

@@ -24,6 +24,9 @@ export default function Todolist(){
     const [replaceDialog, setReplaceDialog] = useState({ open: false, id: null, content: '' })
     const [selectedRecipes, setSelectedRecipes] = useState(new Set())
     const [isSelectMode, setIsSelectMode] = useState(false)
+    const [draggedItem, setDraggedItem] = useState(null)
+    const [dragOverIndex, setDragOverIndex] = useState(null)
+    const [editingHeaders, setEditingHeaders] = useState({})
 
     // Load saved recipes and checklists
     useEffect(()=>{
@@ -283,6 +286,90 @@ export default function Todolist(){
         setDeleteDialog({ open: false, type: '', id: null, idx: null })
     }
 
+    // Drag and drop functions
+    const handleDragStart = (e, recipeId, index, section) => {
+        if (section !== 'langkah') return // Only allow drag for steps
+        setDraggedItem({ recipeId, index, section })
+        e.dataTransfer.effectAllowed = 'move'
+    }
+
+    const handleDragOver = (e, index) => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        setDragOverIndex(index)
+    }
+
+    const handleDragLeave = () => {
+        setDragOverIndex(null)
+    }
+
+    const handleDrop = (e, targetIndex, recipeId, section) => {
+        e.preventDefault()
+        if (!draggedItem || draggedItem.section !== 'langkah' || section !== 'langkah') return
+        
+        const sourceIndex = draggedItem.index
+        if (sourceIndex === targetIndex) {
+            setDraggedItem(null)
+            setDragOverIndex(null)
+            return
+        }
+
+        setLists(prev => {
+            const currentList = prev[recipeId] || { langkah: [], bahan: [] }
+            const items = [...currentList.langkah]
+            
+            // Remove item from source position
+            const [movedItem] = items.splice(sourceIndex, 1)
+            // Insert at target position
+            items.splice(targetIndex, 0, movedItem)
+            
+            const updatedChecklist = { ...currentList, langkah: items }
+            persistChecklist(recipeId, updatedChecklist)
+            
+            return { ...prev, [recipeId]: updatedChecklist }
+        })
+
+        setDraggedItem(null)
+        setDragOverIndex(null)
+    }
+
+    // Header editing functions
+    const startEditingHeader = (recipeId) => {
+        const recipe = saved.find(r => r.id === recipeId)
+        if (recipe) {
+            setEditingHeaders({ ...editingHeaders, [recipeId]: recipe.title })
+        }
+    }
+
+    const saveHeader = (recipeId) => {
+        const newTitle = editingHeaders[recipeId]
+        if (!newTitle || !newTitle.trim()) return
+
+        // Update saved recipes
+        const updatedSaved = saved.map(recipe => 
+            recipe.id === recipeId 
+                ? { ...recipe, title: newTitle.trim() }
+                : recipe
+        )
+        setSaved(updatedSaved)
+        localStorage.setItem('savedRecipes', JSON.stringify(updatedSaved))
+        
+        // Clear editing state
+        const newEditingHeaders = { ...editingHeaders }
+        delete newEditingHeaders[recipeId]
+        setEditingHeaders(newEditingHeaders)
+        
+        try { 
+            window.dispatchEvent(new Event('savedRecipesUpdated')) 
+        } catch {}
+    }
+
+    const cancelEditingHeader = (recipeId) => {
+        const newEditingHeaders = { ...editingHeaders }
+        delete newEditingHeaders[recipeId]
+        setEditingHeaders(newEditingHeaders)
+    }
+
     return (
         <div className="flex flex-col min-h-0 max-h-[80vh] space-y-4 p-4 overflow-y-auto">
             <div className="flex-none">
@@ -373,9 +460,46 @@ export default function Todolist(){
                                 )}
                                 <div className={`flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 ${isSelectMode ? 'pr-8' : ''}`}>
                                     <div className="flex-1 min-w-0">
-                                        <div className="font-semibold truncate text-base" title={item.title || `Resep #${item.id}`}>
-                                            {item.title || `Resep #${item.id}`}
-                                        </div>
+                                        {editingHeaders[item.id] !== undefined ? (
+                                            <div className="flex items-center gap-2">
+                                                <Input
+                                                    value={editingHeaders[item.id]}
+                                                    onChange={(e) => setEditingHeaders({
+                                                        ...editingHeaders,
+                                                        [item.id]: e.target.value
+                                                    })}
+                                                    className="font-semibold text-base"
+                                                    autoFocus
+                                                    onKeyPress={(e) => {
+                                                        if (e.key === 'Enter') saveHeader(item.id)
+                                                        if (e.key === 'Escape') cancelEditingHeader(item.id)
+                                                    }}
+                                                />
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => saveHeader(item.id)}
+                                                    className="h-8 px-2"
+                                                >
+                                                    ✓
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={() => cancelEditingHeader(item.id)}
+                                                    className="h-8 px-2"
+                                                >
+                                                    ✕
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <div 
+                                                className="font-semibold truncate text-base cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 p-1 rounded transition-colors" 
+                                                title={`${item.title || `Resep #${item.id}`} - Klik untuk edit`}
+                                                onClick={() => startEditingHeader(item.id)}
+                                            >
+                                                {item.title || `Resep #${item.id}`} ✏️
+                                            </div>
+                                        )}
                                         <div className="text-xs text-slate-500 mt-1">
                                             {item.createdAt ? new Date(item.createdAt).toLocaleString() : ''}
                                         </div>
@@ -452,6 +576,13 @@ export default function Todolist(){
                                                     onAddItem={addItem}
                                                     onSetEditState={setEditState}
                                                     onSetAddState={setAddState}
+                                                    // Drag and drop props
+                                                    onDragStart={handleDragStart}
+                                                    onDragOver={handleDragOver}
+                                                    onDragLeave={handleDragLeave}
+                                                    onDrop={handleDrop}
+                                                    draggedItem={draggedItem}
+                                                    dragOverIndex={dragOverIndex}
                                                 />
                                             )}
                                         </div>
@@ -534,7 +665,14 @@ function ChecklistSection({
     onRemoveItem,
     onAddItem,
     onSetEditState,
-    onSetAddState
+    onSetAddState,
+    // Drag and drop props
+    onDragStart,
+    onDragOver,
+    onDragLeave,
+    onDrop,
+    draggedItem,
+    dragOverIndex
 }) {
     const addKey = `${recipeId}-${section}`;
 
@@ -551,68 +689,90 @@ function ChecklistSection({
                 <p className="text-xs text-slate-500 italic">Belum ada {title.toLowerCase()}.</p>
             ) : (
                 <ul className="pl-0 space-y-1">
-                    {items.map((item, idx) => (
-                        <li key={idx} className="list-none flex items-center justify-between gap-2 py-2 px-2 rounded transition-colors hover:bg-slate-100 dark:hover:bg-slate-700/50 group">
-                            <div className="flex items-center gap-2 min-w-0 w-full">
-                                <input 
-                                    type="checkbox" 
-                                    checked={item.done} 
-                                    onChange={() => onToggle(recipeId, idx, section)}
-                                    className="rounded"
-                                />
-                                {editState[recipeId]?.index === idx && editState[recipeId]?.section === section ? (
-                                    <Input 
-                                        value={editState[recipeId]?.text || ''} 
-                                        onChange={e => onSetEditState(prev => ({ 
-                                            ...prev, 
-                                            [recipeId]: { 
-                                                index: idx, 
-                                                text: e.target.value, 
-                                                section 
-                                            } 
-                                        }))} 
-                                        className="h-8 w-full text-sm" 
-                                        autoFocus
+                    {items.map((item, idx) => {
+                        const isDragging = draggedItem && draggedItem.recipeId === recipeId && draggedItem.index === idx && draggedItem.section === section;
+                        const isDropTarget = dragOverIndex === idx && section === 'langkah';
+                        
+                        return (
+                            <li 
+                                key={idx} 
+                                className={`list-none flex items-center justify-between gap-2 py-2 px-2 rounded transition-all duration-200 group
+                                    ${isDragging ? 'opacity-50 bg-blue-100 dark:bg-blue-900/30' : 'hover:bg-slate-100 dark:hover:bg-slate-700/50'}
+                                    ${isDropTarget ? 'border-t-2 border-blue-500' : ''}
+                                    ${section === 'langkah' ? 'cursor-move' : ''}
+                                `}
+                                draggable={section === 'langkah'}
+                                onDragStart={(e) => onDragStart && onDragStart(e, recipeId, idx, section)}
+                                onDragOver={(e) => onDragOver && onDragOver(e, idx)}
+                                onDragLeave={onDragLeave}
+                                onDrop={(e) => onDrop && onDrop(e, idx, recipeId, section)}
+                            >
+                                <div className="flex items-center gap-2 min-w-0 w-full">
+                                    {section === 'langkah' && (
+                                        <div className="text-slate-400 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                                            ⋮⋮
+                                        </div>
+                                    )}
+                                    <input 
+                                        type="checkbox" 
+                                        checked={item.done} 
+                                        onChange={() => onToggle(recipeId, idx, section)}
+                                        className="rounded"
                                     />
-                                ) : (
-                                    <span className={`text-sm flex-1 ${item.done ? 'line-through opacity-70' : ''}`}>
-                                        {item.text}
-                                    </span>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-1 shrink-0">
-                                {editState[recipeId]?.index === idx && editState[recipeId]?.section === section ? (
-                                    <>
-                                        <Button size="sm" onClick={() => onApplyEdit(recipeId)} className="h-6 px-2 text-xs">
-                                            ✓
-                                        </Button>
-                                        <Button size="sm" variant="ghost" onClick={() => onCancelEdit(recipeId)} className="h-6 px-2 text-xs">
-                                            ✕
-                                        </Button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Button 
-                                            size="sm" 
-                                            variant="ghost" 
-                                            onClick={() => onStartEdit(recipeId, idx, item.text, section)}
-                                            className="h-6 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            ✏️
-                                        </Button>
-                                        <Button 
-                                            size="sm" 
-                                            variant="ghost" 
-                                            onClick={() => onRemoveItem(recipeId, idx, section)}
-                                            className="h-6 px-2 text-xs text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            🗑️
-                                        </Button>
-                                    </>
-                                )}
-                            </div>
-                        </li>
-                    ))}
+                                    {editState[recipeId]?.index === idx && editState[recipeId]?.section === section ? (
+                                        <Input 
+                                            value={editState[recipeId]?.text || ''} 
+                                            onChange={e => onSetEditState(prev => ({ 
+                                                ...prev, 
+                                                [recipeId]: { 
+                                                    index: idx, 
+                                                    text: e.target.value, 
+                                                    section 
+                                                } 
+                                            }))} 
+                                            className="h-8 w-full text-sm" 
+                                            autoFocus
+                                        />
+                                    ) : (
+                                        <span className={`text-sm flex-1 ${item.done ? 'line-through opacity-70' : ''}`}>
+                                            {item.text}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                    {editState[recipeId]?.index === idx && editState[recipeId]?.section === section ? (
+                                        <>
+                                            <Button size="sm" onClick={() => onApplyEdit(recipeId)} className="h-6 px-2 text-xs">
+                                                ✓
+                                            </Button>
+                                            <Button size="sm" variant="ghost" onClick={() => onCancelEdit(recipeId)} className="h-6 px-2 text-xs">
+                                                ✕
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Button 
+                                                size="sm" 
+                                                variant="ghost" 
+                                                onClick={() => onStartEdit(recipeId, idx, item.text, section)}
+                                                className="h-6 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                ✏️
+                                            </Button>
+                                            <Button 
+                                                size="sm" 
+                                                variant="ghost" 
+                                                onClick={() => onRemoveItem(recipeId, idx, section)}
+                                                className="h-6 px-2 text-xs text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                🗑️
+                                            </Button>
+                                        </>
+                                    )}
+                                </div>
+                            </li>
+                        );
+                    })}
                 </ul>
             )}
             
